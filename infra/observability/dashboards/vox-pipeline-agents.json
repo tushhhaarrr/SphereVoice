@@ -1,0 +1,300 @@
+{
+  "uid": "SphereVoice-pipeline",
+  "title": "3. Pipeline & Agent Performance",
+  "description": "Voice pipeline health, STT/LLM/TTS provider latency, circuit breakers, retries, init failures",
+  "tags": ["SphereVoice", "pipeline", "agents", "providers"],
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "🚨 Pipeline Health Summary",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Pipeline Errors (1h)",
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_pipeline_errors_total[1h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Retries (1h)",
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_pipeline_retries_total[1h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Circuit Breakers (1h)",
+      "description": "Error storm kills — if > 0, a provider is failing catastrophically",
+      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_pipeline_circuit_breaks_total[1h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Init Failures (1h)",
+      "description": "Pipelines that failed to start (missing provider, bad config)",
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_pipeline_init_failures_total[1h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Active Calls",
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(SphereVoice_active_calls) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "WS Connections",
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "super-light-blue", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(SphereVoice_websocket_connections) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "⚡ Pipeline Errors & Retries",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Pipeline Errors by Type",
+      "description": "STT timeout, LLM error, TTS error, circuit break, etc.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" }, "lineWidth": 0 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["sum"], "placement": "right" } },
+      "targets": [
+        { "expr": "sum by (error_type) (increase(SphereVoice_pipeline_errors_total[5m]))", "legendFormat": "{{ error_type }}" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Pipeline Retries & Circuit Breakers",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "sum(increase(SphereVoice_pipeline_retries_total[5m]))", "legendFormat": "retries" },
+        { "expr": "sum(increase(SphereVoice_pipeline_circuit_breaks_total[5m]))", "legendFormat": "circuit_breaks" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Init Failures by Stage",
+      "description": "Which pipeline stage fails most: stt_init, llm_init, tts_init",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "stacking": { "mode": "normal" } },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "sum by (stage) (increase(SphereVoice_pipeline_init_failures_total[5m]))", "legendFormat": "{{ stage }}" }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "🏎️ Provider Performance (STT / LLM / TTS)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "STT Provider Latency (P50 / P95)",
+      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 25 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["lastNotNull"], "placement": "bottom" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket{provider_category=\"stt\"}[5m])))", "legendFormat": "{{ provider_name }} P50" },
+        { "expr": "histogram_quantile(0.95, sum by (le, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket{provider_category=\"stt\"}[5m])))", "legendFormat": "{{ provider_name }} P95" }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "LLM Provider Latency (P50 / P95)",
+      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 25 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["lastNotNull"], "placement": "bottom" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket{provider_category=\"llm\"}[5m])))", "legendFormat": "{{ provider_name }} P50" },
+        { "expr": "histogram_quantile(0.95, sum by (le, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket{provider_category=\"llm\"}[5m])))", "legendFormat": "{{ provider_name }} P95" }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "TTS Provider Latency (P50 / P95)",
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 25 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["lastNotNull"], "placement": "bottom" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket{provider_category=\"tts\"}[5m])))", "legendFormat": "{{ provider_name }} P50" },
+        { "expr": "histogram_quantile(0.95, sum by (le, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket{provider_category=\"tts\"}[5m])))", "legendFormat": "{{ provider_name }} P95" }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Provider Request Rate (by category)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["mean"], "placement": "right" } },
+      "targets": [
+        { "expr": "sum by (provider_category, provider_name) (rate(SphereVoice_provider_requests_total[5m]))", "legendFormat": "{{ provider_category }}/{{ provider_name }}" }
+      ]
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "Provider Error Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2 },
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["mean"], "placement": "right" } },
+      "targets": [
+        { "expr": "sum by (provider_category, provider_name) (rate(SphereVoice_provider_requests_total{status=\"error\"}[5m]))", "legendFormat": "{{ provider_category }}/{{ provider_name }}" }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "📝 Pipeline Logs (Errors Only)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "type": "logs",
+      "title": "Pipeline Error Logs",
+      "description": "Errors from orchestrator, voice_pipeline, factory",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 43 },
+      "datasource": { "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [{
+        "expr": "{service_name=~\"SphereVoice.*\"} |= \"\" | json | level =~ \"ERROR|error\" | line_format \"{{ .event }} {{ .body }}\" |~ \"pipeline|orchestrator|provider|stt|llm|tts|circuit|retry\"",
+        "legendFormat": "",
+        "refId": "A"
+      }]
+    }
+  ]
+}

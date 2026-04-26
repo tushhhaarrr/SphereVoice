@@ -1,0 +1,49 @@
+# Tempo Production Config for SphereVoice Observability Stack
+# Storage: Azure Blob Storage for trace blocks
+# WAL: local persistent volume
+
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4320"
+
+storage:
+  trace:
+    backend: azure
+    azure:
+      # Set via env: AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_ACCESS_KEY
+      container_name: ${TEMPO_AZURE_CONTAINER}
+      storage_account_name: ${AZURE_STORAGE_ACCOUNT}
+      storage_account_key: ${AZURE_STORAGE_ACCESS_KEY}
+    wal:
+      path: /data/tempo/wal
+    block:
+      bloom_filter_false_positive: 0.05
+      v2_index_downsample_bytes: 1000
+      v2_encoding: zstd
+
+compactor:
+  compaction:
+    block_retention: 720h # 30 days
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: SphereVoice-production
+  storage:
+    path: /data/tempo/generator/wal
+    remote_write:
+      - url: http://localhost:9090/api/v1/write
+        send_exemplars: true
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]

@@ -1,0 +1,531 @@
+{
+  "agent_id": "agent_3bf7f1803b95e28aa5fdf05ccc",
+  "channel": "voice",
+  "last_modification_timestamp": 1772820287232,
+  "agent_name": "Patient Screening (from template)",
+  "response_engine": {
+    "type": "conversation-flow",
+    "version": 0,
+    "conversation_flow_id": "conversation_flow_f8ccaf45c7de"
+  },
+  "language": "en-US",
+  "data_storage_setting": "everything",
+  "post_call_analysis_data": [
+    {
+      "name": "Do you currently have a steady place to live?",
+      "description": "",
+      "type": "enum",
+      "choices": [
+        "Yes.",
+        "Yes, but I’m worried about losing it.",
+        "No."
+      ]
+    },
+    {
+      "name": "Do you feel safe in your current living situation?",
+      "description": "",
+      "type": "enum",
+      "choices": [
+        "Yes.",
+        "No, I feel unsafe sometimes.",
+        "No, I feel unsafe often."
+      ]
+    },
+    {
+      "name": "Do you have problems with any of the following in your home?",
+      "description": "",
+      "type": "enum",
+      "choices": [
+        "Pests (e.g., bugs, ants, or mice).",
+        "Mold.",
+        "Plumbing issues or water leaks.",
+        "Heating or cooling problems.",
+        "None of the above."
+      ]
+    },
+    {
+      "name": "Within the past 12 months, have you worried about running out of food before you had money to buy more?",
+      "description": "",
+      "type": "enum",
+      "choices": [
+        "Often true.",
+        "Sometimes true.",
+        "Never true."
+      ]
+    },
+    {
+      "name": "In the past 12 months, has lack of reliable transportation prevented you from:",
+      "description": "",
+      "type": "enum",
+      "choices": [
+        "Attending medical appointments",
+        "Getting to work or school",
+        "Running errands or daily activities",
+        "None of the above."
+      ]
+    },
+    {
+      "name": "Are you currently employed?",
+      "description": "",
+      "type": "enum",
+      "choices": [
+        "Yes, full-time.",
+        "Yes, part-time.",
+        "No, I’m unemployed and looking for work.",
+        "No, I’m not seeking work right now."
+      ]
+    },
+    {
+      "type": "number",
+      "name": "Calculate the number of concerned questions",
+      "description": ""
+    }
+  ],
+  "version": 0,
+  "is_published": false,
+  "is_public": true,
+  "voice_id": "retell-Cimo",
+  "max_call_duration_ms": 3600000,
+  "interruption_sensitivity": 0.9,
+  "user_dtmf_options": {},
+  "conversation_flow": {
+    "conversation_flow_id": "conversation_flow_f8ccaf45c7de",
+    "version": 0,
+    "global_prompt": "## Objective\nYou are an AI agent Anna.\n\nCurrent time is {{current_time}}\n\n{{customer_name}}= \"evie wang\"\n{{dob}}=\"01/01/1997\"\n{{customer zip}}=\"94061\"",
+    "nodes": [
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "say \"Hello, this is Anna, An AI representative calling from Retell Healthcare organization in the recorded line. I'm reaching out to help you access your health service portal, May I speak with {{customer_name}}, please?\""
+        },
+        "name": "Greetings",
+        "edges": [
+          {
+            "condition": "If the customer confirms their identity",
+            "id": "edge-1",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "If the customer confirms their identity"
+            },
+            "destination_node_id": "node-1735871022246"
+          },
+          {
+            "condition": "if the customer is unavailable or it's the wrong number",
+            "id": "edge-2",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "if the customer is unavailable or it's the wrong number"
+            },
+            "destination_node_id": "node-1735940675562"
+          }
+        ],
+        "start_speaker": "agent",
+        "id": "start-node-1735866339701",
+        "type": "conversation",
+        "display_position": {
+          "x": 500,
+          "y": 332
+        }
+      },
+      {
+        "name": "Indentity ",
+        "edges": [
+          {
+            "condition": "the information has been confirmed correct",
+            "id": "edge-1735871022246",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "the information has been confirmed correct"
+            },
+            "destination_node_id": "node-1735945722891"
+          },
+          {
+            "condition": "The information does not align",
+            "id": "edge-1735945224576",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The information does not align"
+            },
+            "destination_node_id": "node-1735940675562"
+          }
+        ],
+        "id": "node-1735871022246",
+        "type": "conversation",
+        "display_position": {
+          "x": 994.77570849517,
+          "y": 326.4803239318797
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "say \"Thank you for confirming. Could you provide your full name, data of birth and zip code for verifying purposes?\"\n\nCheck if their name is {{customer name}}.\nDate of birth is {{dob}}\nZip code is {{customer zip}}\n"
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Apologize and nicely say goodbye."
+        },
+        "name": "Wrong User",
+        "edges": [
+          {
+            "condition": "Describe the transition condition",
+            "id": "edge-1735940675562",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Describe the transition condition"
+            }
+          }
+        ],
+        "id": "node-1735940675562",
+        "type": "conversation",
+        "display_position": {
+          "x": 1523.3333333333333,
+          "y": 883.3333333333334
+        },
+        "interruption_sensitivity": 1,
+        "skip_response_edge": {
+          "condition": "Skip response",
+          "id": "edge-1735940773868",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          },
+          "destination_node_id": "node-1735940779550"
+        }
+      },
+      {
+        "name": "End Call",
+        "id": "node-1735940779550",
+        "type": "end",
+        "display_position": {
+          "x": 2030,
+          "y": 906.6666666666667
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Politely end the call"
+        }
+      },
+      {
+        "transfer_destination": {
+          "type": "predefined",
+          "number": "+12096086888"
+        },
+        "edge": {
+          "condition": "Transfer failed",
+          "id": "edge-1735944226760",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Transfer failed"
+          },
+          "destination_node_id": "node-1736611024399"
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Transferring your call now."
+        },
+        "name": "Transfer Call",
+        "global_node_setting": {
+          "condition": "When User is angry or request a human agent."
+        },
+        "id": "node-1735944226760",
+        "transfer_option": {
+          "type": "cold_transfer",
+          "show_transferee_as_caller": true
+        },
+        "type": "transfer_call",
+        "display_position": {
+          "x": 0,
+          "y": 627
+        }
+      },
+      {
+        "name": "Obtian Confirmation",
+        "edges": [
+          {
+            "condition": "If customer agreed",
+            "id": "edge-1735945722891",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "If customer agreed"
+            },
+            "destination_node_id": "node-1735946518945"
+          },
+          {
+            "condition": "if customer declines",
+            "id": "edge-1736611119064",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "if customer declines"
+            },
+            "destination_node_id": "node-1735940675562"
+          }
+        ],
+        "id": "node-1735945722891",
+        "type": "conversation",
+        "display_position": {
+          "x": 1485.8205667961358,
+          "y": 301.67287451449073
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "\"I'm here to help assess your needs and connect you with relevant health and social services. Do you agree to proceed?\""
+        }
+      },
+      {
+        "name": "Screening Questions 1",
+        "edges": [
+          {
+            "condition": "if his answer is yes",
+            "id": "edge-1735946518945",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "if his answer is yes"
+            },
+            "destination_node_id": "node-1735946944585"
+          },
+          {
+            "condition": "if his answer is no",
+            "id": "edge-1736286265828",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "if his answer is no"
+            },
+            "destination_node_id": "node-1735947010220"
+          }
+        ],
+        "id": "node-1735946518945",
+        "type": "conversation",
+        "display_position": {
+          "x": 2000,
+          "y": 298
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Ask user \"Do you currently have a steady place to live?\""
+        }
+      },
+      {
+        "name": "Screening Questions 2",
+        "edges": [
+          {
+            "condition": "After customer give the answer",
+            "id": "edge-1735946944585",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "After customer give the answer"
+            },
+            "destination_node_id": "node-1735947010220"
+          }
+        ],
+        "id": "node-1735946944585",
+        "type": "conversation",
+        "display_position": {
+          "x": 2500,
+          "y": 360
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Ask user \"Do you have problems with any of the following in your home?\n\t•\tPests (e.g., bugs, ants, or mice).\n\t•\tMold.\n\t•\tPlumbing issues or water leaks.\n\t•\tHeating or cooling problems.\n\t•\tNone of the above.\""
+        }
+      },
+      {
+        "name": "Screening Questions 3",
+        "edges": [
+          {
+            "condition": "After customer give the answer",
+            "id": "edge-1735947010220",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "After customer give the answer"
+            },
+            "destination_node_id": "node-1735947023715"
+          }
+        ],
+        "id": "node-1735947010220",
+        "type": "conversation",
+        "display_position": {
+          "x": 2961.492959756264,
+          "y": 370
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Ask user within the past 12 months, have you worried about running out of food before you had money to buy more?\n\t•\tOften true.\n\t•\tSometimes true.\n\t•\tNever true."
+        }
+      },
+      {
+        "name": "Screening Questions 4",
+        "edges": [
+          {
+            "condition": "After customer give the answer",
+            "id": "edge-1735947023715",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "After customer give the answer"
+            },
+            "destination_node_id": "node-1735947156567"
+          }
+        ],
+        "id": "node-1735947023715",
+        "type": "conversation",
+        "display_position": {
+          "x": 3462.3300693267797,
+          "y": 360
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Ask user In the past 12 months, has lack of reliable transportation prevented you from:\n\t•\tAttending medical appointments?\n\t•\tGetting to work or school?\n\t•\tRunning errands or daily activities?\n\t•\tNone of the above."
+        }
+      },
+      {
+        "name": "Screening Questions 5",
+        "edges": [
+          {
+            "condition": "After customer give the answer",
+            "id": "edge-1735947156567",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "After customer give the answer"
+            },
+            "destination_node_id": "node-1735947239199"
+          }
+        ],
+        "id": "node-1735947156567",
+        "type": "conversation",
+        "display_position": {
+          "x": 3936.3796726407836,
+          "y": 359.16289042948404
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Ask if user is currently employed?"
+        }
+      },
+      {
+        "name": "Closing ",
+        "edges": [
+          {
+            "condition": "if user confirm he has not other questions",
+            "id": "edge-1735947239199",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "if user confirm he has not other questions"
+            },
+            "destination_node_id": "node-1735952884562"
+          }
+        ],
+        "id": "node-1735947239199",
+        "type": "conversation",
+        "display_position": {
+          "x": 4500,
+          "y": 342
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Say \"Thank you for taking the time to answer these questions. Based on your responses, I will share your information with the appropriate teams to help connect you to services. Do you have any questions?\"\n\nAnswer questions if the user has any."
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "\"Thank you for speaking with me today. If you have any questions later, feel free to reach out to support@retellai.com. Have a great day!\""
+        },
+        "name": "Ending The Call",
+        "edges": [
+          {
+            "condition": "Describe the transition condition",
+            "id": "edge-1735952884562",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Describe the transition condition"
+            }
+          }
+        ],
+        "id": "node-1735952884562",
+        "type": "conversation",
+        "display_position": {
+          "x": 5000,
+          "y": 376
+        },
+        "skip_response_edge": {
+          "condition": "Skip response",
+          "id": "edge-1735952927310",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          },
+          "destination_node_id": "node-1735952894632"
+        }
+      },
+      {
+        "name": "End Call",
+        "id": "node-1735952894632",
+        "type": "end",
+        "display_position": {
+          "x": 5500,
+          "y": 486
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Politely end the call"
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "tell user there's a technical issue right now, we will call back in a bit. End the call politely."
+        },
+        "name": "Conversation",
+        "edges": [
+          {
+            "condition": "Describe the transition condition",
+            "id": "edge-1736611024399",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Describe the transition condition"
+            }
+          }
+        ],
+        "id": "node-1736611024399",
+        "type": "conversation",
+        "display_position": {
+          "x": 368.0080110715651,
+          "y": 776.6393943156612
+        },
+        "skip_response_edge": {
+          "condition": "Skip response",
+          "id": "edge-1736611053194",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Skip response"
+          },
+          "destination_node_id": "node-1736611042908"
+        }
+      },
+      {
+        "name": "End Call",
+        "id": "node-1736611042908",
+        "type": "end",
+        "display_position": {
+          "x": 715.7524293522326,
+          "y": 974.8418443254615
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Politely end the call"
+        }
+      }
+    ],
+    "start_node_id": "start-node-1735866339701",
+    "start_speaker": "agent",
+    "model_choice": {
+      "type": "cascading",
+      "model": "gpt-4.1"
+    },
+    "begin_tag_display_position": {
+      "x": 113.5,
+      "y": 501
+    },
+    "is_published": false
+  }
+}

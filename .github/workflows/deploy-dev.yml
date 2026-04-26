@@ -1,0 +1,187 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - ".github/workflows/deploy-dev.yml"
+      - "backend/**"
+      - "frontend/**"
+      - "packages/**"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+env:
+  ACR_LOGIN_SERVER: SphereVoicegorillaaacr.azurecr.io
+  RESOURCE_GROUP: SphereVoice-dev-rg
+  BACKEND_APP: SphereVoice-dev-backend
+  CELERY_APP: SphereVoice-dev-celery
+  FRONTEND_APP: SphereVoice-dev-frontend
+  FRONTEND_API_URL: https://api.dev.SphereVoice.gorillaa.ai
+  AZURE_KEY_VAULT_URL: https://SphereVoice-dev-kv.vault.azure.net/
+
+jobs:
+  # ─── Detect Changes ──────────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/deploy-dev.yml'
+            frontend:
+              - 'frontend/**'
+              - 'packages/**'
+              - '.github/workflows/deploy-dev.yml'
+
+  # ─── Build Backend ───────────────────────────────────────────
+  build-backend:
+    name: Build Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile.prod
+          platforms: linux/amd64
+          provenance: false
+          push: true
+          cache-from: type=gha,scope=backend-dev
+          cache-to: type=gha,mode=max,scope=backend-dev
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.BACKEND_APP }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.BACKEND_APP }}:dev-latest
+
+  # ─── Build Frontend ─────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          platforms: linux/amd64
+          provenance: false
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.FRONTEND_API_URL }}
+          cache-from: type=gha,scope=frontend-dev
+          cache-to: type=gha,mode=max,scope=frontend-dev
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.FRONTEND_APP }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.FRONTEND_APP }}:dev-latest
+
+  # ─── Deploy ──────────────────────────────────────────────────
+  deploy:
+    name: Deploy Dev
+    needs: [changes, build-backend, build-frontend]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR (for migrations)
+        if: needs.build-backend.result == 'success'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Run database migrations
+        if: needs.build-backend.result == 'success'
+        run: |
+          docker run --rm \
+            -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            -e ENCRYPTION_KEY="${{ secrets.ENCRYPTION_KEY }}" \
+            -e ENVIRONMENT="development" \
+            "$ACR_LOGIN_SERVER/$BACKEND_APP:${GITHUB_SHA}" \
+            alembic upgrade head
+
+      - name: Update backend container app
+        if: needs.build-backend.result == 'success'
+        run: |
+          az containerapp update \
+            --name "$BACKEND_APP" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/$BACKEND_APP:${GITHUB_SHA}" \
+            --set-env-vars \
+              "ENVIRONMENT=development" \
+              "CELERY_BROKER_BACKEND=servicebus" \
+              "AZURE_SERVICE_BUS_CONNECTION_STRING=${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}" \
+              "AZURE_SERVICE_BUS_QUEUE_PREFIX=SphereVoice-dev" \
+              "PLIVO_AUTH_ID=${{ secrets.PLIVO_AUTH_ID }}" \
+              "PLIVO_AUTH_TOKEN=${{ secrets.PLIVO_AUTH_TOKEN }}" \
+            --output none
+
+      - name: Update celery worker container app
+        if: needs.build-backend.result == 'success'
+        run: |
+          az containerapp update \
+            --name "$CELERY_APP" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/$BACKEND_APP:${GITHUB_SHA}" \
+            --set-env-vars \
+              "ENVIRONMENT=development" \
+              "CELERY_BROKER_BACKEND=servicebus" \
+              "AZURE_SERVICE_BUS_CONNECTION_STRING=${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}" \
+              "AZURE_SERVICE_BUS_QUEUE_PREFIX=SphereVoice-dev" \
+              "PLIVO_AUTH_ID=${{ secrets.PLIVO_AUTH_ID }}" \
+              "PLIVO_AUTH_TOKEN=${{ secrets.PLIVO_AUTH_TOKEN }}" \
+            --output none
+
+      - name: Update frontend container app
+        if: needs.build-frontend.result == 'success'
+        run: |
+          az containerapp update \
+            --name "$FRONTEND_APP" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/$FRONTEND_APP:${GITHUB_SHA}" \
+            --output none
+
+      - name: Verify deployment status
+        run: |
+          for app in "$BACKEND_APP" "$CELERY_APP" "$FRONTEND_APP"; do
+            az containerapp show \
+              --name "$app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query '{name:name,latestRevisionName:properties.latestRevisionName,provisioningState:properties.provisioningState,runningStatus:properties.runningStatus}'
+          done

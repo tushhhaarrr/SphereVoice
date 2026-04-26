@@ -1,0 +1,96 @@
+# Promtail Configuration for SphereVoice
+# Ships Docker container logs to Loki with label enrichment
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 1048576 # 1MB
+    timeout: 10s
+
+scrape_configs:
+  # ── Docker container logs ─────────────────────────────────
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: SphereVoice-docker
+          __path__: /var/log/docker/*log
+
+  - job_name: containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project"]
+    relabel_configs:
+      # Extract container name
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/?(.*)"
+        target_label: "container"
+      # Extract compose service name
+      - source_labels:
+          ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: "service"
+      # Extract compose project
+      - source_labels:
+          ["__meta_docker_container_label_com_docker_compose_project"]
+        target_label: "project"
+
+    pipeline_stages:
+      # ── Parse JSON logs from backend (structlog) ──────────
+      - docker: {}
+
+      - match:
+          selector: '{service="backend"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  event: event
+                  tenant_id: tenant_id
+                  request_id: request_id
+                  trace_id: trace_id
+                  span_id: span_id
+                  call_id: call_id
+                  agent_id: agent_id
+                  duration_ms: duration_ms
+            - labels:
+                level:
+                event:
+                tenant_id:
+                call_id:
+                agent_id:
+            # ── Derive Loki-native traceID for Tempo correlation
+            - template:
+                source: trace_id
+                template: "{{ .Value }}"
+            - output:
+                source: trace_id
+
+      - match:
+          selector: '{service="celery-worker"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  event: event
+                  tenant_id: tenant_id
+                  trace_id: trace_id
+            - labels:
+                level:
+                event:
+                tenant_id:
+
+      # ── Drop health-check noise ───────────────────────────
+      - match:
+          selector: '{service="backend"} |~ `"path":"/health"|"path":"/ready"|"path":"/metrics"`'
+          action: drop

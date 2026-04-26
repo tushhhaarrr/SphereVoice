@@ -1,0 +1,261 @@
+[project]
+name = "spherevoice"
+version = "0.1.0"
+description = "Advanced Voice AI Orchestration Platform"
+authors = ["SphereVoice Team <admin@spherevoice.ai>"]
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["app"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/workers/*", "*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+# ─── Import Linter (Module Boundary Enforcement) ────────────
+[tool.importlinter]
+root_packages = ["app"]
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: auth"
+type = "forbidden"
+source_modules = [
+    "app.modules.agents",
+    "app.modules.calls",
+    "app.modules.providers",
+    "app.modules.pipeline",
+    "app.modules.knowledge_base",
+    "app.modules.analytics",
+    "app.modules.webhooks",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.auth.service",
+    "app.modules.auth.models",
+    "app.modules.auth.schemas",
+    "app.modules.auth.router",
+    "app.modules.auth.dependencies",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: agents"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.calls",
+    "app.modules.providers",
+    "app.modules.pipeline",
+    "app.modules.knowledge_base",
+    "app.modules.analytics",
+    "app.modules.webhooks",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.agents.service",
+    "app.modules.agents.models",
+    "app.modules.agents.schemas",
+    "app.modules.agents.router",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: calls"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.agents",
+    "app.modules.providers",
+    "app.modules.pipeline",
+    "app.modules.knowledge_base",
+    "app.modules.analytics",
+    "app.modules.webhooks",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.calls.service",
+    "app.modules.calls.models",
+    "app.modules.calls.schemas",
+    "app.modules.calls.router",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: providers"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.agents",
+    "app.modules.calls",
+    "app.modules.pipeline",
+    "app.modules.knowledge_base",
+    "app.modules.analytics",
+    "app.modules.webhooks",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.providers.service",
+    "app.modules.providers.models",
+    "app.modules.providers.schemas",
+    "app.modules.providers.router",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: pipeline"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.agents",
+    "app.modules.calls",
+    "app.modules.providers",
+    "app.modules.knowledge_base",
+    "app.modules.analytics",
+    "app.modules.webhooks",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.pipeline.orchestrator",
+    "app.modules.pipeline.factory",
+    "app.modules.pipeline.flow_engine",
+    "app.modules.pipeline.models",
+    "app.modules.pipeline.router",
+    "app.modules.pipeline.services",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: knowledge_base"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.agents",
+    "app.modules.calls",
+    "app.modules.providers",
+    "app.modules.pipeline",
+    "app.modules.analytics",
+    "app.modules.webhooks",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.knowledge_base.service",
+    "app.modules.knowledge_base.models",
+    "app.modules.knowledge_base.schemas",
+    "app.modules.knowledge_base.router",
+    "app.modules.knowledge_base.retriever",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: analytics"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.agents",
+    "app.modules.calls",
+    "app.modules.providers",
+    "app.modules.pipeline",
+    "app.modules.knowledge_base",
+    "app.modules.webhooks",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.analytics.service",
+    "app.modules.analytics.models",
+    "app.modules.analytics.schemas",
+    "app.modules.analytics.router",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: webhooks"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.agents",
+    "app.modules.calls",
+    "app.modules.providers",
+    "app.modules.pipeline",
+    "app.modules.knowledge_base",
+    "app.modules.analytics",
+    "app.modules.phone_numbers",
+]
+forbidden_modules = [
+    "app.modules.webhooks.service",
+    "app.modules.webhooks.models",
+    "app.modules.webhooks.schemas",
+    "app.modules.webhooks.router",
+]
+allow_indirect_imports = false
+
+[[tool.importlinter.contracts]]
+name = "Module boundary: phone_numbers"
+type = "forbidden"
+source_modules = [
+    "app.modules.auth",
+    "app.modules.agents",
+    "app.modules.calls",
+    "app.modules.providers",
+    "app.modules.pipeline",
+    "app.modules.knowledge_base",
+    "app.modules.analytics",
+    "app.modules.webhooks",
+]
+forbidden_modules = [
+    "app.modules.phone_numbers.service",
+    "app.modules.phone_numbers.models",
+    "app.modules.phone_numbers.schemas",
+    "app.modules.phone_numbers.router",
+]
+allow_indirect_imports = false

@@ -1,0 +1,5 @@
+# Root .dockerignore — applies to backend builds (context: .)
+# Only backend/ is needed by backend/Dockerfile.prod
+*
+!backend
+!backend/**

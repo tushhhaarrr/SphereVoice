@@ -1,0 +1,351 @@
+{
+  "uid": "SphereVoice-integrations",
+  "title": "4. Integrations & System Health",
+  "description": "CRM integrations, background workers, webhooks, database, knowledge base",
+  "tags": ["SphereVoice", "crm", "workers", "integrations", "system"],
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "🔗 CRM Integration Health",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "CRM Syncs (24h)",
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_crm_sync_total[24h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "CRM Sync Failures (24h)",
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_crm_sync_total{status=\"error\"}[24h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Enrichment Lookups (1h)",
+      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_crm_enrichment_total[1h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Enrichment P95 Latency",
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 2 }] },
+          "noValue": "N/A"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(SphereVoice_crm_enrichment_latency_seconds_bucket[5m])) by (le))", "legendFormat": "" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Webhook Delivered (24h)",
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "green", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_webhook_deliveries_total{status=\"success\"}[24h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Webhook Failures (24h)",
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_webhook_deliveries_total{status=\"error\"}[24h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "CRM Sync Status Over Time",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*success.*" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byRegexp", "options": ".*error.*" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "sum by (module, status) (increase(SphereVoice_crm_sync_total[15m]))", "legendFormat": "{{ module }} ({{ status }})" }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "CRM Enrichment Latency Distribution",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(SphereVoice_crm_enrichment_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(SphereVoice_crm_enrichment_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(SphereVoice_crm_enrichment_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P99" }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "⚙️ Background Workers (Celery)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Worker Task Completions",
+      "description": "Success vs failure per task type",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 15 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*success.*" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byRegexp", "options": ".*error.*" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["sum"], "placement": "right" } },
+      "targets": [
+        { "expr": "sum by (task_name, status) (increase(SphereVoice_worker_tasks_total[5m]))", "legendFormat": "{{ task_name }} ({{ status }})" }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Worker Task Duration (P95)",
+      "description": "Slowest tasks — watch for spikes",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 15 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["lastNotNull"], "placement": "right" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, task_name) (rate(SphereVoice_worker_task_duration_seconds_bucket[5m])))", "legendFormat": "{{ task_name }}" }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "📚 Knowledge Base & Webhooks",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "KB Search Latency (P50 / P95)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 25 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(SphereVoice_kb_search_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(SphereVoice_kb_search_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P95" }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "KB Document Operations",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 25 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" } },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "targets": [
+        { "expr": "sum by (operation, status) (increase(SphereVoice_kb_documents_total[5m]))", "legendFormat": "{{ operation }} ({{ status }})" }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Webhook Delivery Over Time",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 25 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "success" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "retry" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        { "expr": "sum by (status) (increase(SphereVoice_webhook_deliveries_total[5m]))", "legendFormat": "{{ status }}" }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "💾 Database & Infrastructure",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Database Query Latency (P50 / P95)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(SphereVoice_db_query_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(SphereVoice_db_query_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(SphereVoice_db_query_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P99" }
+      ]
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "HTTP Requests In Progress",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "targets": [
+        { "expr": "SphereVoice_http_requests_in_progress", "legendFormat": "in_progress" }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Top Slow Endpoints (P95)",
+      "description": "Slowest API paths over time",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 42 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["lastNotNull", "max"], "placement": "right" } },
+      "targets": [
+        { "expr": "topk(10, histogram_quantile(0.95, sum by (le, path_template) (rate(SphereVoice_http_request_duration_seconds_bucket[5m]))))", "legendFormat": "{{ path_template }}" }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "📋 Integration Logs",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 50 },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 41,
+          "type": "logs",
+          "title": "CRM & Worker Logs",
+          "description": "Logs from CRM sync, workers, webhooks",
+          "gridPos": { "h": 12, "w": 24, "x": 0, "y": 51 },
+          "datasource": { "uid": "loki" },
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "wrapLogMessage": true,
+            "enableLogDetails": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          },
+          "targets": [{
+            "expr": "{service_name=~\"SphereVoice.*\"} |= \"\" | json | line_format \"{{ .event }} {{ .body }}\" |~ \"crm|sync|webhook|worker|celery|enrichment|knowledge|embedding\"",
+            "legendFormat": "",
+            "refId": "A"
+          }]
+        }
+      ]
+    }
+  ]
+}

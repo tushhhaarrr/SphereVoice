@@ -1,0 +1,12 @@
+# ── Default: owner reviews everything ───────────────────────
+* @girish-ban_gorillaa
+
+# ── Critical paths: ALWAYS require owner ────────────────────
+backend/app/core/                    @girish-ban_gorillaa
+backend/app/modules/pipeline/        @girish-ban_gorillaa
+backend/alembic/                     @girish-ban_gorillaa
+infra/                               @girish-ban_gorillaa
+.github/workflows/                   @girish-ban_gorillaa
+docker-compose.yml                   @girish-ban_gorillaa
+backend/Dockerfile.prod              @girish-ban_gorillaa
+frontend/Dockerfile                  @girish-ban_gorillaa

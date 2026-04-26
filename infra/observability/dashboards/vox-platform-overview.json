@@ -1,0 +1,383 @@
+{
+  "uid": "SphereVoice-overview",
+  "title": "1. SphereVoice Overview",
+  "description": "At-a-glance health of the entire SphereVoice — calls, pipeline, providers, system",
+  "tags": ["SphereVoice", "overview", "production"],
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource_prom",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "selected": true, "text": "Prometheus", "value": "prometheus" },
+        "hide": 2
+      },
+      {
+        "name": "datasource_loki",
+        "type": "datasource",
+        "query": "loki",
+        "current": { "selected": true, "text": "Loki", "value": "loki" },
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "🔴 Critical Health Indicators",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Active Calls",
+      "description": "Calls currently in progress",
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "text", "value": null },
+              { "color": "green", "value": 1 },
+              { "color": "blue", "value": 10 }
+            ]
+          },
+          "mappings": [{ "type": "value", "options": { "0": { "text": "None", "color": "text" } } }]
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area", "textMode": "auto" },
+      "targets": [{ "expr": "sum(SphereVoice_active_calls) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Total Calls (24h)",
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_calls_total[24h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Call Success Rate",
+      "description": "Percentage of calls completing successfully (5m window)",
+      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.85 },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          },
+          "noValue": "N/A (no calls)"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{
+        "expr": "1 - (sum(rate(SphereVoice_calls_total{status=\"failed\"}[5m])) or on() vector(0)) / clamp_min(sum(rate(SphereVoice_calls_total[5m])), 0.001)",
+        "legendFormat": ""
+      }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Pipeline Errors (1h)",
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_pipeline_errors_total[1h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "HTTP Error Rate (5m)",
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "noValue": "0%"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{
+        "expr": "sum(rate(SphereVoice_http_request_duration_seconds_count{status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(SphereVoice_http_request_duration_seconds_count[5m])), 0.001)",
+        "legendFormat": ""
+      }]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Backend Up",
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "UP ✓", "color": "green" }, "0": { "text": "DOWN ✗", "color": "red" } } }
+          ],
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "max(up{job=\"SphereVoice-backend\"})", "legendFormat": "" }]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "📞 Call Activity",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Calls Over Time (by Status)",
+      "description": "Call volume split by completion status",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "stacking": { "mode": "normal" }, "lineWidth": 0 },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "completed" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "failed" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "transferred" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "sum by (status) (increase(SphereVoice_calls_total[5m]))", "legendFormat": "{{ status }}" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Active Calls",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5 },
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "sum by (direction) (SphereVoice_active_calls)", "legendFormat": "{{ direction }}" },
+        { "expr": "sum(SphereVoice_active_calls)", "legendFormat": "total" }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "⚡ Pipeline & Provider Health",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "collapsed": false
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Pipeline Errors by Type",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" } },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["sum"], "placement": "right" } },
+      "targets": [
+        { "expr": "sum by (error_type) (increase(SphereVoice_pipeline_errors_total[5m]))", "legendFormat": "{{ error_type }}" }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Provider Latency (P95)",
+      "description": "95th percentile TTFB for STT/LLM/TTS providers",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "calcs": ["lastNotNull"], "placement": "right" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket[5m])))", "legendFormat": "{{ provider_name }}" }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "table",
+      "title": "Provider Status",
+      "description": "Current request rates and error rates per provider",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 25 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Error Rate" }, "properties": [
+            { "id": "unit", "value": "percentunit" },
+            { "id": "thresholds", "value": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.02 }, { "color": "red", "value": 0.05 }] } },
+            { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+          ] },
+          { "matcher": { "id": "byName", "options": "Req/s" }, "properties": [{ "id": "unit", "value": "reqps" }, { "id": "decimals", "value": 2 }] },
+          { "matcher": { "id": "byName", "options": "P95 Latency" }, "properties": [{ "id": "unit", "value": "s" }, { "id": "decimals", "value": 3 }] }
+        ]
+      },
+      "options": { "showHeader": true, "footer": { "show": false } },
+      "transformations": [
+        { "id": "merge" },
+        { "id": "organize", "options": { "renameByName": { "provider_category": "Category", "provider_name": "Provider", "Value #A": "Req/s", "Value #B": "Error Rate", "Value #C": "P95 Latency" } } }
+      ],
+      "targets": [
+        { "expr": "sum by (provider_category, provider_name) (rate(SphereVoice_provider_requests_total[5m]))", "legendFormat": "", "format": "table", "instant": true, "refId": "A" },
+        { "expr": "sum by (provider_category, provider_name) (rate(SphereVoice_provider_requests_total{status=\"error\"}[5m])) / clamp_min(sum by (provider_category, provider_name) (rate(SphereVoice_provider_requests_total[5m])), 0.001)", "legendFormat": "", "format": "table", "instant": true, "refId": "B" },
+        { "expr": "histogram_quantile(0.95, sum by (le, provider_category, provider_name) (rate(SphereVoice_provider_latency_seconds_bucket[5m])))", "legendFormat": "", "format": "table", "instant": true, "refId": "C" }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "🌐 HTTP & API Layer",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "HTTP Request Rate",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 34 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "reqps",
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "targets": [{ "expr": "sum(rate(SphereVoice_http_request_duration_seconds_count[5m]))", "legendFormat": "req/s" }]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "HTTP Error Rate (5xx)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 34 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2 },
+          "unit": "reqps",
+          "color": { "fixedColor": "red", "mode": "fixed" }
+        }
+      },
+      "targets": [{ "expr": "sum(rate(SphereVoice_http_request_duration_seconds_count{status_code=~\"5..\"}[5m]))", "legendFormat": "5xx/s" }]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "HTTP Latency (P50 / P95 / P99)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 34 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(SphereVoice_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(SphereVoice_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(SphereVoice_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P99" }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "📋 Recent Errors",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "type": "logs",
+      "title": "Latest ERROR / CRITICAL Logs",
+      "description": "Real-time error stream from the backend",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 43 },
+      "datasource": { "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [{
+        "expr": "{service_name=~\"SphereVoice.*\"} |= \"\" | json | level =~ \"ERROR|CRITICAL|error|critical\"",
+        "legendFormat": "",
+        "refId": "A"
+      }]
+    }
+  ]
+}

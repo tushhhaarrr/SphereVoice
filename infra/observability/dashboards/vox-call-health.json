@@ -1,0 +1,331 @@
+{
+  "uid": "SphereVoice-calls",
+  "title": "2. Call Health & Debugger",
+  "description": "Deep dive into call performance — working vs failed, per-agent analysis, per-call debugging",
+  "tags": ["SphereVoice", "calls", "debugging"],
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "name": "call_id",
+        "type": "textbox",
+        "label": "Call ID",
+        "description": "Filter logs/traces for a specific call",
+        "current": { "value": "" },
+        "options": []
+      },
+      {
+        "name": "tenant_id",
+        "type": "textbox",
+        "label": "Tenant ID",
+        "description": "Filter by tenant",
+        "current": { "value": "" },
+        "options": []
+      },
+      {
+        "name": "direction",
+        "type": "custom",
+        "label": "Direction",
+        "query": "inbound,outbound",
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "📊 Call Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Completed Calls",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_calls_total{status=\"completed\", direction=~\"$direction\"}[24h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Failed Calls",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(increase(SphereVoice_calls_total{status=\"failed\", direction=~\"$direction\"}[24h])) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Avg Duration",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "sum(rate(SphereVoice_call_duration_seconds_sum{direction=~\"$direction\"}[1h])) / clamp_min(sum(rate(SphereVoice_call_duration_seconds_count{direction=~\"$direction\"}[1h])), 0.001)", "legendFormat": "" }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "P95 Duration",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "color": { "fixedColor": "purple", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(SphereVoice_call_duration_seconds_bucket{direction=~\"$direction\"}[1h])) by (le))", "legendFormat": "" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Active Now",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "text", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(SphereVoice_active_calls{direction=~\"$direction\"}) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "WebSocket Streams",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "super-light-blue", "mode": "fixed" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [{ "expr": "sum(SphereVoice_websocket_connections) or on() vector(0)", "legendFormat": "" }]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "📈 Call Trends",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Calls by Status",
+      "description": "Completed (green) vs Failed (red) calls over time",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "stacking": { "mode": "normal" }, "lineWidth": 0 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "completed" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "failed" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "transferred" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "sum by (status) (increase(SphereVoice_calls_total{direction=~\"$direction\"}[5m]))", "legendFormat": "{{ status }}" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Call Duration Distribution",
+      "description": "P50, P90, P95, P99 call duration over time",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2 },
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(SphereVoice_call_duration_seconds_bucket{direction=~\"$direction\"}[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.90, sum(rate(SphereVoice_call_duration_seconds_bucket{direction=~\"$direction\"}[5m])) by (le))", "legendFormat": "P90" },
+        { "expr": "histogram_quantile(0.95, sum(rate(SphereVoice_call_duration_seconds_bucket{direction=~\"$direction\"}[5m])) by (le))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(SphereVoice_call_duration_seconds_bucket{direction=~\"$direction\"}[5m])) by (le))", "legendFormat": "P99" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Calls by Direction",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal" } },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "targets": [
+        { "expr": "sum by (direction) (increase(SphereVoice_calls_total[5m]))", "legendFormat": "{{ direction }}" }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Calls by Tenant",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "datasource": { "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "calcs": ["sum"], "placement": "right" } },
+      "targets": [
+        { "expr": "sum by (tenant_id) (increase(SphereVoice_calls_total[5m]))", "legendFormat": "{{ tenant_id }}" }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "🔍 Per-Call Debugger",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 24 },
+      "options": {
+        "mode": "markdown",
+        "content": "### 🔎 Enter a **Call ID** in the variable above to filter logs and traces for a specific call.\nUse the Call ID from your application's call list, or find one in the error logs below.",
+        "code": { "language": "plaintext", "showLineNumbers": false }
+      }
+    },
+    {
+      "id": 22,
+      "type": "logs",
+      "title": "Call Logs (filtered by call_id=$call_id)",
+      "description": "All log entries for the selected call",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 26 },
+      "datasource": { "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [{
+        "expr": "{service_name=~\"SphereVoice.*\"} |= \"$call_id\" | json",
+        "legendFormat": "",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "❌ Failed Calls Log",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "type": "logs",
+      "title": "Failed Call Events",
+      "description": "All ERROR/CRITICAL logs — click a call_id to debug",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 41 },
+      "datasource": { "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [{
+        "expr": "{service_name=~\"SphereVoice.*\"} |= \"\" | json | level =~ \"ERROR|CRITICAL|error|critical\"",
+        "legendFormat": "",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "📊 Call Volume Table (by Tenant)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 55 },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 41,
+          "type": "table",
+          "title": "Call Volume per Tenant (24h)",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 56 },
+          "datasource": { "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Value #B" }, "properties": [
+                { "id": "unit", "value": "percentunit" },
+                { "id": "thresholds", "value": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.1 }] } },
+                { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+              ] }
+            ]
+          },
+          "transformations": [
+            { "id": "merge" },
+            { "id": "organize", "options": { "renameByName": { "tenant_id": "Tenant", "Value #A": "Total Calls", "Value #B": "Failure Rate" } } }
+          ],
+          "targets": [
+            { "expr": "sum by (tenant_id) (increase(SphereVoice_calls_total[24h]))", "format": "table", "instant": true, "refId": "A" },
+            { "expr": "sum by (tenant_id) (increase(SphereVoice_calls_total{status=\"failed\"}[24h])) / clamp_min(sum by (tenant_id) (increase(SphereVoice_calls_total[24h])), 0.001)", "format": "table", "instant": true, "refId": "B" }
+          ]
+        }
+      ]
+    }
+  ]
+}

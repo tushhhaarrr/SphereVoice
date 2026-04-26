@@ -1,0 +1,143 @@
+# Prometheus Alerting Rules for SphereVoice
+# These rules fire when critical thresholds are breached.
+# Alerts are visible in Prometheus UI and can be routed via Alertmanager.
+
+groups:
+  # ─────────────────────────────────────────────────────────
+  # Call Health
+  # ─────────────────────────────────────────────────────────
+  - name: SphereVoice_call_health
+    interval: 30s
+    rules:
+      - alert: HighCallFailureRate
+        expr: |
+          (
+            sum(rate(SphereVoice_calls_total{status="failed"}[5m])) /
+            clamp_min(sum(rate(SphereVoice_calls_total[5m])), 0.001)
+          ) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Call failure rate above 10%"
+          description: >
+            {{ $value | humanizePercentage }} of calls are failing over the last 5 minutes.
+            Check pipeline logs and provider health.
+
+      - alert: NoActiveCalls
+        expr: |
+          sum(SphereVoice_active_calls) == 0
+          and sum(increase(SphereVoice_calls_total[1h])) > 10
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "No active calls despite recent traffic"
+          description: >
+            No active calls in the last 15 minutes but there was traffic in the past hour.
+            May indicate a systemic pipeline failure.
+
+      - alert: CallDurationAnomaly
+        expr: |
+          histogram_quantile(0.95, sum(rate(SphereVoice_call_duration_seconds_bucket[30m])) by (le))
+          > 1800
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "P95 call duration exceeds 30 minutes"
+          description: >
+            The 95th percentile call duration is {{ $value | humanizeDuration }}.
+            This may indicate stuck calls or zombie pipelines.
+
+  # ─────────────────────────────────────────────────────────
+  # Pipeline Health
+  # ─────────────────────────────────────────────────────────
+  - name: SphereVoice_pipeline_health
+    interval: 30s
+    rules:
+      - alert: PipelineCircuitBreakerTripped
+        expr: increase(SphereVoice_pipeline_circuit_breaks_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pipeline circuit breaker activated"
+          description: >
+            A voice pipeline triggered its circuit breaker ({{ $value }} times in 5m).
+            This means a provider is in an error loop. Check STT/LLM/TTS provider health.
+
+      - alert: HighPipelineRetryRate
+        expr: sum(rate(SphereVoice_pipeline_retries_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pipeline retry rate elevated"
+          description: >
+            Pipelines are retrying at {{ $value | humanize }}/sec.
+            Transient provider errors are likely occurring.
+
+      - alert: PipelineInitFailures
+        expr: sum(rate(SphereVoice_pipeline_init_failures_total[5m])) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pipeline initialization failures detected"
+          description: >
+            New calls are failing to start pipelines.
+            Check provider API keys, service availability, and configuration.
+
+  # ─────────────────────────────────────────────────────────
+  # Infrastructure
+  # ─────────────────────────────────────────────────────────
+  - name: SphereVoice_infrastructure
+    interval: 30s
+    rules:
+      - alert: HighHTTPErrorRate
+        expr: |
+          (
+            sum(rate(SphereVoice_http_request_duration_seconds_count{status_code=~"5.."}[5m])) /
+            clamp_min(sum(rate(SphereVoice_http_request_duration_seconds_count[5m])), 0.001)
+          ) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "HTTP 5xx error rate above 5%"
+          description: >
+            {{ $value | humanizePercentage }} of HTTP requests are returning 5xx errors.
+
+      - alert: HighHTTPLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(SphereVoice_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "HTTP P95 latency above 2 seconds"
+          description: >
+            The 95th percentile HTTP response time is {{ $value | humanizeDuration }}.
+
+      - alert: BackendDown
+        expr: up{job="SphereVoice-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "SphereVoice Backend is unreachable"
+          description: >
+            Prometheus cannot scrape the SphereVoice backend /metrics endpoint.
+            The backend may be down or unresponsive.

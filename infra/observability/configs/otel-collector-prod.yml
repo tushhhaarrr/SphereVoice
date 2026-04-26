@@ -1,0 +1,74 @@
+# OTEL Collector Production Config for SphereVoice Observability Stack
+# Receives: OTLP HTTP traces + logs from SphereVoice-backend (via nginx on /v1/)
+# Exports: traces → Tempo, metrics → Prometheus, logs → Loki
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Add resource attributes
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: production
+        action: upsert
+
+  # Promote resource labels for Loki indexing
+  resource/loki:
+    attributes:
+      - key: loki.resource.labels
+        value: service.name, deployment.environment
+        action: insert
+
+exporters:
+  # Export traces to co-located Tempo (on port 4320 to avoid conflict)
+  otlp/tempo:
+    endpoint: "localhost:4320"
+    tls:
+      insecure: true
+
+  # Export metrics for Prometheus scraping
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: SphereVoice
+
+  # Export logs to co-located Loki
+  loki:
+    endpoint: "http://localhost:3100/loki/api/v1/push"
+
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, resource/loki, batch]
+      exporters: [loki, debug]

@@ -1,0 +1,233 @@
+// ═══════════════════════════════════════════════════════════════
+// SphereVoice — Azure Log Analytics KQL Queries
+// Run these in: Azure Portal → Log Analytics workspace → Logs
+// Or pin them to Azure Dashboard for live monitoring
+// ═══════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────
+// 1. ALL ERRORS (last hour) — equivalent of Grafana error panel
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(1h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where parsed.level in ("error", "critical")
+| project
+    TimeGenerated,
+    Level = tostring(parsed.level),
+    Event = tostring(parsed.event),
+    CallId = tostring(parsed.call_id),
+    TenantId = tostring(parsed.tenant_id),
+    AgentId = tostring(parsed.agent_id),
+    TraceId = tostring(parsed.trace_id),
+    Error = tostring(parsed.error),
+    Message = Log_s
+| order by TimeGenerated desc
+
+// ─────────────────────────────────────────────────────────────
+// 2. ERRORS FOR A SPECIFIC CALL — paste your call_id
+//    Equivalent of the "Call Debugger" in local Grafana
+// ─────────────────────────────────────────────────────────────
+let target_call_id = "YOUR-CALL-UUID-HERE";
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(24h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.call_id) == target_call_id
+| project
+    TimeGenerated,
+    Level = tostring(parsed.level),
+    Event = tostring(parsed.event),
+    TraceId = tostring(parsed.trace_id),
+    Message = Log_s
+| order by TimeGenerated asc
+
+// ─────────────────────────────────────────────────────────────
+// 3. FULL CALL TIMELINE — all events for a call (lifecycle)
+// ─────────────────────────────────────────────────────────────
+let target_call_id = "YOUR-CALL-UUID-HERE";
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(24h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.call_id) == target_call_id
+| where tostring(parsed.event) in (
+    "call_record_created",
+    "pipeline_started",
+    "call_participant_joined",
+    "call_participant_left",
+    "call_ended",
+    "call_failed",
+    "pipeline_failed",
+    "voice_pipeline_error",
+    "voice_pipeline_retry_scheduled",
+    "pipeline_circuit_breaker_tripped",
+    "stt_switched_to_fallback"
+  )
+| project
+    TimeGenerated,
+    Event = tostring(parsed.event),
+    Level = tostring(parsed.level),
+    Details = Log_s
+| order by TimeGenerated asc
+
+// ─────────────────────────────────────────────────────────────
+// 4. FAILED CALLS TABLE — recent calls with errors (red rows)
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(6h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) in ("pipeline_failed", "pipeline_initialization_failed", "voice_pipeline_retries_exhausted")
+| project
+    TimeGenerated,
+    CallId = tostring(parsed.call_id),
+    TenantId = tostring(parsed.tenant_id),
+    Event = tostring(parsed.event),
+    Error = tostring(parsed.error),
+    DisconnectionReason = tostring(parsed.disconnection_reason)
+| order by TimeGenerated desc
+
+// ─────────────────────────────────────────────────────────────
+// 5. CALL FAILURE RATE (time chart — last 24h)
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(24h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) in ("call_record_created", "pipeline_failed", "call_ended")
+| summarize
+    TotalCalls = countif(tostring(parsed.event) == "call_record_created"),
+    FailedCalls = countif(tostring(parsed.event) == "pipeline_failed"),
+    CompletedCalls = countif(tostring(parsed.event) == "call_ended")
+    by bin(TimeGenerated, 15m)
+| extend FailureRate = round(100.0 * FailedCalls / max_of(TotalCalls, 1), 2)
+| order by TimeGenerated asc
+| render timechart
+
+// ─────────────────────────────────────────────────────────────
+// 6. ERRORS BY TENANT (which client is having problems?)
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(6h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.level) in ("error", "critical")
+| where isnotempty(tostring(parsed.tenant_id))
+| summarize ErrorCount = count() by TenantId = tostring(parsed.tenant_id)
+| order by ErrorCount desc
+| render barchart
+
+// ─────────────────────────────────────────────────────────────
+// 7. PIPELINE HEALTH — retries, circuit breakers, init failures
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(6h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) in (
+    "voice_pipeline_retry_scheduled",
+    "pipeline_circuit_breaker_tripped",
+    "stt_switched_to_fallback",
+    "pipeline_initialization_failed",
+    "voice_pipeline_retries_exhausted"
+  )
+| summarize Count = count() by Event = tostring(parsed.event), bin(TimeGenerated, 15m)
+| render timechart
+
+// ─────────────────────────────────────────────────────────────
+// 8. HTTP API ERROR RATE (5xx responses)
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(1h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) == "http_request"
+| extend StatusCode = toint(parsed.status_code)
+| summarize
+    Total = count(),
+    Errors5xx = countif(StatusCode >= 500),
+    Slow = countif(todouble(parsed.duration_ms) > 2000)
+    by bin(TimeGenerated, 5m)
+| extend ErrorRate = round(100.0 * Errors5xx / max_of(Total, 1), 2)
+| order by TimeGenerated asc
+| render timechart
+
+// ─────────────────────────────────────────────────────────────
+// 9. SLOW API ENDPOINTS (P95 latency)
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(1h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) == "http_request"
+| extend
+    Path = tostring(parsed.path),
+    DurationMs = todouble(parsed.duration_ms)
+| summarize
+    P50 = percentile(DurationMs, 50),
+    P95 = percentile(DurationMs, 95),
+    P99 = percentile(DurationMs, 99),
+    Count = count()
+    by Path
+| where Count > 5
+| order by P95 desc
+
+// ─────────────────────────────────────────────────────────────
+// 10. CELERY WORKER ERRORS
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(6h)
+| where ContainerAppName_s == "SphereVoice-celery-worker"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.level) in ("error", "critical")
+| project
+    TimeGenerated,
+    Event = tostring(parsed.event),
+    Error = tostring(parsed.error),
+    Message = Log_s
+| order by TimeGenerated desc
+
+// ─────────────────────────────────────────────────────────────
+// 11. PROVIDER ERRORS (which STT/LLM/TTS provider is failing?)
+// ─────────────────────────────────────────────────────────────
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(6h)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) has_any (
+    "stt_fallback_unavailable",
+    "llm_service_unavailable",
+    "tts_service_unavailable",
+    "stt_switched_to_fallback",
+    "pipeline_circuit_breaker_tripped"
+  )
+| project
+    TimeGenerated,
+    CallId = tostring(parsed.call_id),
+    Event = tostring(parsed.event),
+    Error = tostring(parsed.error),
+    Fallback = tostring(parsed.fallback)
+| order by TimeGenerated desc
+
+// ─────────────────────────────────────────────────────────────
+// 12. ACTIVE CALLS RIGHT NOW (approximate)
+//     Count calls that started but haven't ended in the last 30 min
+// ─────────────────────────────────────────────────────────────
+let started = ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(30m)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) == "call_record_created"
+| extend CallId = tostring(parsed.call_id)
+| distinct CallId;
+let ended = ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(30m)
+| where ContainerAppName_s == "SphereVoice-backend"
+| extend parsed = parse_json(Log_s)
+| where tostring(parsed.event) in ("call_ended", "pipeline_failed")
+| extend CallId = tostring(parsed.call_id)
+| distinct CallId;
+started
+| join kind=leftanti ended on CallId
+| count
