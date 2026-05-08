@@ -11,7 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.agents.models import ProcessingNode
+from app.modules.agents.models import CognitiveNode
 from app.modules.agents.share_link_models import NodeAccessConduit
 from app.modules.agents.share_link_schemas import ConduitTemporalPreset
 
@@ -109,7 +109,7 @@ class ConduitOrchestrator:
     async def validate_conduit_credential(
         db: AsyncSession,
         credential: str,
-    ) -> tuple[NodeAccessConduit, ProcessingNode]:
+    ) -> tuple[NodeAccessConduit, CognitiveNode]:
         """Validates a spectral credential and resolves the associated conduit and node.
 
         Raises 404 if unresolved, 410 if de-phased (expired/revoked/exhausted).
@@ -137,7 +137,7 @@ class ConduitOrchestrator:
                 detail="Access conduit has reached its maximum synchronization quota",
             )
 
-        node_result = await db.execute(select(ProcessingNode).where(ProcessingNode.id == conduit.node_sig))
+        node_result = await db.execute(select(CognitiveNode).where(CognitiveNode.id == conduit.node_sig))
         node = node_result.scalar_one_or_none()
         if not node:
             raise HTTPException(

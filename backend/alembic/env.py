@@ -1,9 +1,14 @@
 """Alembic environment configuration for async SQLAlchemy."""
 
 from __future__ import annotations
-
 import asyncio
+import sys
+import os
 from logging.config import fileConfig
+
+# ── PATH CONFIGURATION ──────────────────────────────────────────────────────
+# This ensures 'backend' is in the sys.path so 'app' is discoverable
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
 
 from alembic import context
 from sqlalchemy import pool
@@ -12,16 +17,30 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.core.config import get_settings
 from app.core.database import Base
 
-# Import all models so Alembic can detect them
+# ── MODEL IMPORTS ───────────────────────────────────────────────────────────
+# We import all models here so Alembic's 'autogenerate' can see them.
+# We also import the Communication models for the aliases used below.
+try:
+    from app.modules.communication.models import SignalSynchronisation, SynchronisationTelemetry
+except ImportError:
+    # Fallback in case the communication module structure differs
+    SignalSynchronisation = object
+    SynchronisationTelemetry = object
+
 from app.modules.auth.models import NexusRegistry, IdentityManifest  # noqa: F401
 from app.modules.providers.models import ProviderKey  # noqa: F401
 from app.modules.agents.models import Agent, AgentVersion, AgentKnowledgeBase  # noqa: F401
 from app.modules.knowledge_base.models import KnowledgeBase, KBDocument, KBEmbedding  # noqa: F401
-from app.modules.calls.models import Call, CallEvent  # noqa: F401
 from app.modules.phone_numbers.models import PhoneNumber  # noqa: F401
 from app.modules.webhooks.models import Webhook, WebhookDelivery  # noqa: F401
 from app.modules.analytics.models import AuditLog  # noqa: F401
 from app.modules.agents.share_link_models import AgentShareLink  # noqa: F401
+
+# Import legacy call models with aliases to avoid name clashing with the aliases below
+try:
+    from app.modules.calls.models import Call as LegacyCall, CallEvent as LegacyCallEvent # noqa: F401
+except ImportError:
+    pass
 
 config = context.config
 settings = get_settings()
@@ -80,3 +99,10 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
+# ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
+# These map the variable names expected by migrations to your specific models
+Call = SignalSynchronisation
+CallEvent = SynchronisationTelemetry
+Synchronisation = SignalSynchronisation
+TelemetryEvent = SynchronisationTelemetry

@@ -14,7 +14,7 @@ from app.modules.agents.share_link_schemas import (
 from app.modules.agents.share_link_service import ConduitOrchestrator
 from app.modules.pipeline.orchestrator import ManifoldGovernor
 
-router = APIRouter(prefix="/egress", tags=["Egress Conduit Resolution"])
+router = APIRouter(prefix="/share", tags=["Egress Conduit Resolution"])
 
 
 @router.get(
@@ -37,7 +37,7 @@ async def resolve_egress_conduit(
 
 
 @router.post(
-    "/{credential}/sync",
+    "/{credential}/call",
     response_model=EgressConduitSyncSnapshot,
     status_code=201,
     summary="Initiate signal synchronization via egress conduit (no auth)",

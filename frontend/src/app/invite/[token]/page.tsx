@@ -120,7 +120,7 @@ export default function AcceptInvitePage() {
                 <div className="space-y-1 text-center">
                     <h1 className="text-3xl font-bold tracking-tight">SphereVoice</h1>
                     <p className="text-sm text-muted-foreground">
-                        Voice AI Agent Platform by Gorillaa AI
+                        Voice AI Agent Platform by SphereVoice
                     </p>
                 </div>
 

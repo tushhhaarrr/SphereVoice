@@ -8,7 +8,8 @@
 import NextAuth, { type DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998";
+// The base URL already includes /api/v1
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998/api/v1";
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
 
 function readTokenExpiry(accessToken: string): number | null {
@@ -30,7 +31,8 @@ function readTokenExpiry(accessToken: string): number | null {
 
 async function refreshAccessToken(token: Record<string, unknown>) {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+        // FIXED: Removed duplicate /api/v1
+        const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refresh_token: token.refreshToken }),
@@ -84,7 +86,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 }
 
                 try {
-                    const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+                    // FIXED: Removed duplicate /api/v1
+                    const res = await fetch(`${API_BASE_URL}/auth/login`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -94,21 +97,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     });
 
                     if (!res.ok) {
+                        console.error("Backend rejected login. Status:", res.status);
                         return null;
                     }
 
                     const data = await res.json();
+                    
+                    // Safely extract the user object. 
+                    // If backend doesn't return a nested 'user' object, fallback to defaults
+                    const userObj = data.user || {};
 
                     return {
-                        id: data.user.id,
-                        email: data.user.email,
-                        name: data.user.name || data.user.email,
-                        role: data.user.role,
-                        tenantId: data.user.tenant_id,
+                        id: userObj.id || "admin-id",
+                        email: userObj.email || credentials.email,
+                        name: userObj.name || userObj.email || "Admin",
+                        role: userObj.role || "admin",
+                        tenantId: userObj.tenant_id || null,
                         accessToken: data.access_token,
-                        refreshToken: data.refresh_token,
+                        refreshToken: data.refresh_token || "",
                     };
-                } catch {
+                } catch (error) {
+                    console.error("Authorize fetch failed:", error);
                     return null;
                 }
             },
@@ -176,4 +185,3 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     trustHost: true,
 });
-

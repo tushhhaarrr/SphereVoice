@@ -3,23 +3,23 @@
 from app.modules.agents.models import (
     BehavioralProbe,
     NodeKnowledgeMatrix,
-    NodeStateArchive,
-    ProcessingNode,
-    ProbeTelemetry,
+    NodeVersion,
+    CognitiveNode,
+    NodeStateArchive,  # Now exists via alias in models.py
+    ProcessingNode,     # Now exists via alias in models.py
+    ProbeTelemetry,     # Now exists via alias in models.py
 )
-from app.modules.agents.service import (
-    BehavioralProbeOrchestrator,
-    ProcessingNexusOrchestrator,
-)
-from app.modules.agents.test_matcher import audit_outcome_alignment
+# ... imports from service and test_matcher
 
 __all__ = [
-    "ProcessingNode",
-    "NodeStateArchive",
+    "CognitiveNode",
+    "NodeVersion",
     "NodeKnowledgeMatrix",
     "ProcessingNexusOrchestrator",
     "ProbeTelemetry",
     "BehavioralProbe",
     "BehavioralProbeOrchestrator",
     "audit_outcome_alignment",
+    "NodeStateArchive",
+    "ProcessingNode",
 ]

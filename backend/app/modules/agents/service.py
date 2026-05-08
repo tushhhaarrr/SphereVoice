@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.exceptions import ForbiddenError, NotFoundError
-from app.modules.agents.models import ProcessingNode, NodeStateArchive, ProbeTelemetry, BehavioralProbe
+from app.modules.agents.models import CognitiveNode, NodeVersion, ProbeTelemetry, BehavioralProbe
 from app.modules.providers.models import BackendAccess
 
 telemetry_logger = structlog.get_logger(__name__)
@@ -87,7 +87,7 @@ class ProcessingNexusOrchestrator:
         node_class: str,
         creator_sig: UUID | None = None,
         **props: object,
-    ) -> ProcessingNode:
+    ) -> CognitiveNode:
         """Establishes a new processing node manifest in the architectural substrate."""
         cfg = get_settings()
 
@@ -110,7 +110,7 @@ class ProcessingNexusOrchestrator:
 
         telemetry_logger.info("node_manifestation_resolved", domain=str(tenant_id), label=label)
 
-        node = ProcessingNode(
+        node = CognitiveNode(
             tenant_id=tenant_id,
             node_label=label,
             node_class=node_class,
@@ -128,13 +128,13 @@ class ProcessingNexusOrchestrator:
         db: AsyncSession,
         node_sig: UUID,
         author_sig: UUID | None = None,
-    ) -> ProcessingNode:
+    ) -> CognitiveNode:
         """Transitions a processing node iteration to an active operational state."""
         node = await ProcessingNexusOrchestrator.capture_node_instance(db, node_sig)
         next_revision = node.revision + 1
         ts = datetime.now(UTC)
 
-        archive = NodeStateArchive(
+        archive = NodeVersion(
             node_sig=node.id,
             revision=next_revision,
             architectural_blueprint={
@@ -160,12 +160,12 @@ class ProcessingNexusOrchestrator:
         return node
 
     @staticmethod
-    async def capture_node_instance(db: AsyncSession, node_sig: UUID) -> ProcessingNode:
+    async def capture_node_instance(db: AsyncSession, node_sig: UUID) -> CognitiveNode:
         """Captures a specific instance of a processing node from the substrate."""
-        res = await db.execute(select(ProcessingNode).where(ProcessingNode.id == node_sig))
+        res = await db.execute(select(CognitiveNode).where(CognitiveNode.id == node_sig))
         node = res.scalar_one_or_none()
         if not node:
-            raise NotFoundError("ProcessingNode", str(node_sig))
+            raise NotFoundError("CognitiveNode", str(node_sig))
         return node
 
     @staticmethod
@@ -175,16 +175,16 @@ class ProcessingNexusOrchestrator:
         phase: str | None = None,
         page: int = 1,
         limit: int = 50,
-    ) -> tuple[list[ProcessingNode], int]:
+    ) -> tuple[list[CognitiveNode], int]:
         """Aggregates active processing nodes based on architectural filters."""
-        flux = select(ProcessingNode)
+        flux = select(CognitiveNode)
         if tenant_id:
-            flux = flux.where(ProcessingNode.tenant_id == tenant_id)
+            flux = flux.where(CognitiveNode.tenant_id == tenant_id)
         if phase:
-            flux = flux.where(ProcessingNode.node_phase == phase)
+            flux = flux.where(CognitiveNode.node_phase == phase)
 
         total = (await db.execute(select(func.count()).select_from(flux.subquery()))).scalar_one()
-        res = await db.execute(flux.order_by(ProcessingNode.created_at.desc()).offset((page - 1) * limit).limit(limit))
+        res = await db.execute(flux.order_by(CognitiveNode.created_at.desc()).offset((page - 1) * limit).limit(limit))
         return list(res.scalars().all()), total
 
     @staticmethod
@@ -192,7 +192,7 @@ class ProcessingNexusOrchestrator:
         db: AsyncSession,
         node_sig: UUID,
         **mutations: object,
-    ) -> ProcessingNode:
+    ) -> CognitiveNode:
         """Applies structural mutations to an established processing node manifest."""
         node = await ProcessingNexusOrchestrator.capture_node_instance(db, node_sig)
         for trait, value in mutations.items():

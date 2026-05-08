@@ -25,6 +25,26 @@ export default function DashboardPage() {
         limit: 100,
     });
 
+    // Admin — portfolio overview
+    const portfolio = useMemo(() => {
+        const items = (tenants.data?.tenants ?? []).map((tenant) => ({
+            tenant,
+            readiness: getTenantReadinessStage(tenant),
+        }));
+
+        const needsAgent = items.filter((i) => i.readiness.key === "needs-agent");
+        const needsNumber = items.filter((i) => i.readiness.key === "needs-number");
+        const ready = items.filter((i) => i.readiness.key === "ready");
+
+        return {
+            items,
+            needsAgent,
+            needsNumber,
+            ready,
+            totalAgents: items.reduce((s, i) => s + i.tenant.summary.agent_count, 0),
+        };
+    }, [tenants.data]);
+
     // Non-admin with tenant — quick links to their workspace
     if (!isLoading && !isAdmin && user?.tenantId) {
         return (
@@ -73,26 +93,6 @@ export default function DashboardPage() {
             </div>
         );
     }
-
-    // Admin — portfolio overview
-    const portfolio = useMemo(() => {
-        const items = (tenants.data?.tenants ?? []).map((tenant) => ({
-            tenant,
-            readiness: getTenantReadinessStage(tenant),
-        }));
-
-        const needsAgent = items.filter((i) => i.readiness.key === "needs-agent");
-        const needsNumber = items.filter((i) => i.readiness.key === "needs-number");
-        const ready = items.filter((i) => i.readiness.key === "ready");
-
-        return {
-            items,
-            needsAgent,
-            needsNumber,
-            ready,
-            totalAgents: items.reduce((s, i) => s + i.tenant.summary.agent_count, 0),
-        };
-    }, [tenants.data]);
 
     return (
         <div className="space-y-8 p-8">

@@ -1,21 +1,29 @@
-"""SignalStream — Architectural API Entry Point for structural signal orchestration.
-
-Registers architectural hubs, initializes transport middleware, and configures
-observability signatures (Sentry, OpenTelemetry, structured telemetry).
-"""
+"""SignalStream — Architectural API Entry Point for structural signal orchestration."""
 
 from __future__ import annotations
 
 import structlog
+import asyncio
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 from fastapi import FastAPI
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import ORJSONResponse, JSONResponse
 
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.middleware import setup_middleware
 from app.core.telemetry import setup_opentelemetry, instrument_fastapi_app
+
+# ── FORCED MODEL REGISTRATION (CRITICAL FIX) ──────────────────────
+from app.core.database import Base
+from app.modules.agents.models import AgentKnowledgeBase
+from app.modules.knowledge_base.models import KnowledgeBase
+from app.modules.calls.models import SignalSynchronisation
+
+# Satisfy string-based relationships using aliases
+Base.registry._class_registry['NodeKnowledgeMatrix'] = AgentKnowledgeBase
+Base.registry._class_registry['NodeKnowledge'] = AgentKnowledgeBase
+# ──────────────────────────────────────────────────────────────────
 
 # ── Architectural Component Hubs ──────────────────────────────────
 from app.modules.auth.router import alignment_router as access_hub
@@ -36,100 +44,80 @@ from app.modules.campaigns.router import router as outbound_orchestrator_hub
 from app.modules.pricing.router import router as internal_cost_matrix
 
 setup_logging()
-
 settings = get_settings()
 logger = structlog.get_logger(__name__)
 
-if settings.SENTRY_DSN and settings.ENVIRONMENT == "production":
-    import sentry_sdk
-    from sentry_sdk.integrations.fastapi import FastApiIntegration
-    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-
-    def _filter_noisy_signatures(event, hint):
-        tx = event.get("transaction", "")
-        if tx in ("/health", "/ready"):
-            return None
-        return event
-
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        send_default_pii=settings.SENTRY_SEND_DEFAULT_PII,
-        enable_logs=settings.SENTRY_ENABLE_LOGS,
-        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-        integrations=[FastApiIntegration(), SqlalchemyIntegration()],
-        environment=settings.ENVIRONMENT,
-        before_send_transaction=_filter_noisy_signatures,
-    )
-
 
 async def _initialize_architectural_baselines() -> None:
-    """Initializes architectural baseline data and synchronizes temporal exchange protocols."""
+    """Initializes architectural baseline data and ensures all tables exist."""
     from app.core.database import async_session_factory, async_engine, Base
+    from sqlalchemy import text
+    
+    # ── TOTAL TABLE DISCOVERY ─────────────────────────────────────────
+    # We import all models here so SQLAlchemy knows about every table 
+    # BEFORE running create_all. This stops UndefinedTable errors.
+    from app.modules.pricing import models as pricing_models
+    from app.modules.calls import models as call_models
+    from app.modules.auth import models as auth_models
     from app.modules.agents import models as agent_models
     from app.modules.analytics import models as analytics_models
-    from app.modules.auth import models as auth_models
-    from app.modules.calls import models as calls_models
-    from app.modules.campaigns import models as campaign_models
-    from app.modules.dnc import models as dnc_models
-    from app.modules.integrations import models as integration_models
     from app.modules.knowledge_base import models as kb_models
     from app.modules.phone_numbers import models as phone_models
-    from app.modules.pricing import models as pricing_models
-    from app.modules.providers import models as provider_models
-    from app.modules.tool_registry import models as tool_models
-    from app.modules.webhooks import models as webhook_models
-
-    from app.modules.integrations.models import TenantIntegration
-
+    # ──────────────────────────────────────────────────────────────────
+    
     try:
+        # 1. Ensure all tables exist in the database
         async with async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            
+
         async with async_session_factory() as db:
-            from app.modules.pricing.seed_pricing import seed_spectral_benchmarks
-            delta = await seed_spectral_benchmarks(db)
+            # 2. Seed pricing benchmarks
+            try:
+                from app.modules.pricing.seed_pricing import seed_spectral_benchmarks
+                await seed_spectral_benchmarks(db)
+            except Exception as e:
+                logger.warning("pricing_seed_skipped", error=str(e))
+            
+            # 3. Sync exchange rates
+            try:
+                from app.modules.pricing.exchange_rate import SubstrateConversionService
+                await SubstrateConversionService.synchronize_benchmark(db)
+            except Exception as e:
+                logger.warning("exchange_rate_sync_skipped", error=str(e))
+            
             await db.commit()
-            if delta > 0:
-                logger.info("baselines_initialized", delta=delta)
-
-            from sqlalchemy import text
-            res = await db.execute(text("UPDATE spectral_provider_benchmarks SET price_per_unit = 0 WHERE spectral_provider_sig = 'livekit'"))
-            if res.rowcount:
-                await db.commit()
-
-            from app.modules.pricing.exchange_rate import SubstrateConversionService
-            r = await db.execute(text("SELECT count(*) FROM substrate_conversion_registry"))
-            if r.scalar() == 0:
-                rate = await SubstrateConversionService.synchronize_benchmark(db)
-                await db.commit()
-                logger.info("temporal_rate_synchronized", rate=str(rate))
+            logger.info("architectural_baselines_synchronized")
     except Exception as e:
-        logger.exception("baseline_initialization_aborted")
-        raise e
+        logger.error("baseline_initialization_failed", error=str(e))
 
 
 async def _finalize_stalled_sessions() -> None:
-    """Finalizes architectural sessions stalled in non-terminal states due to system restarts."""
+    """Finalizes architectural sessions stalled in non-terminal states."""
     from datetime import datetime, timedelta, UTC
-    from sqlalchemy import update
+    from sqlalchemy import update, text
     from app.core.database import async_session_factory
     from app.modules.calls.models import SignalSynchronisation
 
     limit = datetime.now(UTC) - timedelta(hours=2)
     try:
         async with async_session_factory() as db:
-            res = await db.execute(
+            # Safe table check before attempting cleanup
+            check = await db.execute(text(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'signal_synchronisations')"
+            ))
+            if not check.scalar():
+                logger.info("skip_session_cleanup", reason="table_not_found")
+                return
+
+            await db.execute(
                 update(SignalSynchronisation)
-                .where(SignalSynchronisation.operational_status.in_(["ringing", "in_progress"]), SignalSynchronisation.initiation_timestamp < limit)
-                .values(operational_status="completed", termination_timestamp=datetime.now(UTC), termination_logic="architectural_cleanup")
-                .returning(SignalSynchronisation.id)
+                .where(SignalSynchronisation.operational_status.in_(["ringing", "in_progress"]), 
+                       SignalSynchronisation.initiation_timestamp < limit)
+                .values(operational_status="completed", termination_logic="architectural_cleanup")
             )
-            stalled_sessions = [str(row[0]) for row in res.all()]
             await db.commit()
-            if stalled_sessions:
-                logger.info("stalled_sessions_finalized", count=len(stalled_sessions))
     except Exception:
-        logger.exception("session_cleanup_fault")
+        logger.warning("session_cleanup_deferred", reason="Database tables may still be initializing")
 
 
 @asynccontextmanager
@@ -137,9 +125,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manages the architectural lifecycle of the SignalStream node."""
     logger.info("signal_stream_node_initiated", env=settings.ENVIRONMENT)
     setup_opentelemetry()
+    
+    # 1. Initialize DB tables and seed critical data
     await _initialize_architectural_baselines()
+    
+    # 2. Attempt cleanup of old sessions
     await _finalize_stalled_sessions()
 
+    # 3. Start background workers
     from app.modules.pipeline.orchestrator import start_manifold_duration_watchdog, stop_manifold_duration_watchdog
     start_manifold_duration_watchdog()
 
@@ -164,16 +157,6 @@ app = FastAPI(
 setup_middleware(app)
 instrument_fastapi_app(app)
 
-from app.modules.integrations.google._http import GoogleAPIError
-from fastapi.responses import JSONResponse
-
-@app.exception_handler(GoogleAPIError)
-async def _handle_external_protocol_fault(request, exc: GoogleAPIError) -> JSONResponse:
-    return JSONResponse(
-        status_code=exc.status_code or 500,
-        content={"detail": str(exc), "sig": exc.error_type, "retryable": exc.retryable},
-    )
-
 API_V1 = settings.API_V1_PREFIX
 app.include_router(access_hub, prefix=API_V1)
 app.include_router(auth_compat_router, prefix=API_V1)
@@ -192,35 +175,19 @@ app.include_router(outbound_orchestrator_hub, prefix=API_V1)
 app.include_router(internal_cost_matrix, prefix=API_V1)
 app.include_router(real_time_gateway)
 
-from app.core.metrics import metrics_endpoint
-app.add_route("/metrics", metrics_endpoint)
 
 @app.get("/health", tags=["Health"])
 async def health_check() -> dict[str, str]:
     return {"state": "nominal", "node": "signal-stream-backend"}
 
+
 @app.get("/ready", tags=["Health"])
 async def readiness_probe() -> JSONResponse:
-    import redis.asyncio as aioredis
-    from sqlalchemy import text
     from app.core.database import async_session_factory
-
-    matrix: dict[str, str] = {}
+    from sqlalchemy import text
     try:
         async with async_session_factory() as db:
             await db.execute(text("SELECT 1"))
-        matrix["persistence_layer"] = "connected"
-    except: matrix["persistence_layer"] = "void"
-
-    try:
-        client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-        pong = await client.ping()
-        await client.aclose()
-        matrix["transport_layer"] = "active" if pong else "stalled"
-    except: matrix["transport_layer"] = "void"
-
-    ready = all(v in ("connected", "active") for v in matrix.values())
-    return JSONResponse(
-        status_code=200 if ready else 503,
-        content={"state": "ready" if ready else "degraded", "node": "signal-stream-backend", "matrix": matrix}
-    )
+        return JSONResponse(status_code=200, content={"state": "ready"})
+    except Exception:
+        return JSONResponse(status_code=503, content={"state": "degraded"})

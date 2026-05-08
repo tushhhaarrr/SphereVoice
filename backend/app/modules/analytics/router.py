@@ -53,7 +53,7 @@ from app.modules.analytics.service import (
     IdentityMatrixManager,
 )
 
-router = APIRouter(prefix="/observability-hub", tags=["Observability"])
+router = APIRouter(prefix="/analytics", tags=["Observability"])
 
 
 def _resolve_domain_manifest(domain: object, weights: dict[str, int]) -> DomainStateResponse:

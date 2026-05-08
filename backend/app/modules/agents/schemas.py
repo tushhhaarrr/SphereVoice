@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ── Authority & Dimensional Logic ─────────────────────────────
 
-ProcessingNodeClass = Literal["structural_flow", "monolith_nexus"]
+CognitiveNodeClass = Literal["structural_flow", "monolith_nexus", "conversation_flow", "single_prompt"]
 OperationalPhase = Literal["draft", "published", "archived"]
 
 
@@ -20,10 +20,12 @@ class NodeActivationOutcome(BaseModel):
 
 
 class NodeClusteredRegistry(BaseModel):
-    nodes: list[NodeStateSnapshot]
-    total_count: int
-    cursor_position: int
-    limit_bound: int
+    nodes: list[NodeStateSnapshot] = Field(..., alias="agents", serialization_alias="agents")
+    total_count: int = Field(..., alias="total", serialization_alias="total")
+    cursor_position: int = Field(..., alias="page", serialization_alias="page")
+    limit_bound: int = Field(..., alias="limit", serialization_alias="limit")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class NodeArchitecturalAdjustment(BaseModel):
@@ -101,33 +103,33 @@ class NodeStateSnapshot(BaseModel):
     """Encapsulates the current granular state matrix of a processing node."""
 
     id: UUID
-    domain_sig: UUID = Field(..., alias="tenant_id")
-    label: str = Field(..., alias="node_label")
-    node_class: str = Field(..., alias="node_class")
-    node_phase: str = Field(..., alias="node_phase")
-    vector_direction: str = Field(..., alias="vector_direction")
-    ingress_transcription_sig: UUID | None = Field(None)
-    inference_matrix_sig: UUID | None = Field(None)
-    egress_synthesis_sig: UUID | None = Field(None)
-    transport_nexus_sig: UUID | None = Field(None)
-    architectural_blueprint: dict[str, object] = Field(...)
-    locale_sig: str = Field(..., alias="locale_sig")
-    vocal_spectral_sig: str | None = Field(None)
-    transmission_velocity: Decimal = Field(..., alias="transmission_velocity")
-    transmission_amplitude: Decimal = Field(..., alias="transmission_amplitude")
-    inference_model_sig: str | None = Field(None)
-    stochastic_coefficient: Decimal = Field(..., alias="stochastic_coefficient")
-    quantum_ceiling: int = Field(...)
-    temporal_ceiling: int = Field(...)
-    silence_threshold: int = Field(...)
-    alert_horizon: int = Field(...)
-    fallback_logic: str = Field(...)
-    synthesis_logic: list[dict[str, object]] = Field(...)
-    observability_sink: str | None = Field(None)
-    telemetry_events: list[str] = Field(...)
-    revision: int = Field(...)
-    activation_mark: datetime | None = Field(None)
-    creator_sig: UUID | None = Field(None)
+    domain_sig: UUID = Field(..., alias="tenant_id", serialization_alias="tenant_id")
+    label: str = Field(..., alias="node_label", serialization_alias="name")
+    node_class: str = Field(..., alias="node_class", serialization_alias="type")
+    node_phase: str = Field(..., alias="node_phase", serialization_alias="status")
+    vector_direction: str = Field(..., alias="vector_direction", serialization_alias="call_direction")
+    ingress_transcription_sig: UUID | None = Field(None, serialization_alias="stt_provider_id")
+    inference_matrix_sig: UUID | None = Field(None, serialization_alias="llm_provider_id")
+    egress_synthesis_sig: UUID | None = Field(None, serialization_alias="tts_provider_id")
+    transport_nexus_sig: UUID | None = Field(None, serialization_alias="telephony_provider_id")
+    architectural_blueprint: dict[str, object] = Field(..., serialization_alias="config")
+    locale_sig: str = Field(..., alias="locale_sig", serialization_alias="language")
+    vocal_spectral_sig: str | None = Field(None, serialization_alias="voice_id")
+    transmission_velocity: Decimal = Field(..., alias="transmission_velocity", serialization_alias="voice_speed")
+    transmission_amplitude: Decimal = Field(..., alias="transmission_amplitude", serialization_alias="voice_volume")
+    inference_model_sig: str | None = Field(None, serialization_alias="llm_model")
+    stochastic_coefficient: Decimal = Field(..., alias="stochastic_coefficient", serialization_alias="llm_temperature")
+    quantum_ceiling: int = Field(..., serialization_alias="llm_max_tokens")
+    temporal_ceiling: int = Field(..., serialization_alias="max_call_duration_seconds")
+    silence_threshold: int = Field(..., serialization_alias="end_on_silence_seconds")
+    alert_horizon: int = Field(..., serialization_alias="ring_duration_seconds")
+    fallback_logic: str = Field(..., serialization_alias="voicemail_detection")
+    synthesis_logic: list[dict[str, object]] = Field(..., serialization_alias="extraction_fields")
+    observability_sink: str | None = Field(None, serialization_alias="webhook_url")
+    telemetry_events: list[str] = Field(..., serialization_alias="webhook_events")
+    revision: int = Field(..., serialization_alias="version")
+    activation_mark: datetime | None = Field(None, serialization_alias="published_at")
+    creator_sig: UUID | None = Field(None, serialization_alias="created_by")
     created_at: datetime
     updated_at: datetime
 
@@ -138,27 +140,27 @@ class NodeManifestDefinition(BaseModel):
     """Encapsulates the intent to manifest a new processing node."""
 
     domain_sig: UUID = Field(..., alias="tenant_id")
-    label: str = Field(..., min_length=1, max_length=255, alias="node_label")
-    node_class: ProcessingNodeClass = Field(..., alias="category")
-    vector_direction: Literal["inbound", "outbound"] = "inbound"
+    label: str = Field(..., min_length=1, max_length=255, alias="name")
+    node_class: CognitiveNodeClass = Field(..., alias="type")
+    vector_direction: Literal["inbound", "outbound"] = Field("inbound", alias="call_direction")
 
-    ingress_transcription_sig: UUID | None = None
-    inference_matrix_sig: UUID | None = None
-    egress_synthesis_sig: UUID | None = None
-    transport_nexus_sig: UUID | None = None
+    ingress_transcription_sig: UUID | None = Field(None, alias="stt_provider_id")
+    inference_matrix_sig: UUID | None = Field(None, alias="llm_provider_id")
+    egress_synthesis_sig: UUID | None = Field(None, alias="tts_provider_id")
+    transport_nexus_sig: UUID | None = Field(None, alias="telephony_provider_id")
 
-    architectural_blueprint: dict[str, object] = Field(default_factory=dict, alias="architecture")
-    locale_sig: str = Field("en-US", alias="locale")
-    vocal_spectral_sig: str | None = Field(None, alias="acoustic_signature")
-    transmission_velocity: Decimal = Field(Decimal("1.0"), alias="playback_velocity")
-    transmission_amplitude: Decimal = Field(Decimal("1.0"), alias="playback_amplitude")
-    inference_model_sig: str | None = Field(None, alias="engine_blueprint")
-    stochastic_coefficient: Decimal = Field(Decimal("0.7"), alias="variance_coefficient")
-    temporal_ceiling: int = Field(240, ge=60, le=7200, alias="session_timeout_limit")
-    silence_threshold: int = Field(8, ge=5, le=1800)
-    fallback_logic: str = Field("hang_up", alias="automation_logic")
-    observability_sink: str | None = Field(None, alias="telemetry_sink_url")
-    telemetry_events: list[str] = Field(default_factory=list)
+    architectural_blueprint: dict[str, object] = Field(default_factory=dict, alias="config")
+    locale_sig: str = Field("en-US", alias="language")
+    vocal_spectral_sig: str | None = Field(None, alias="voice_id")
+    transmission_velocity: Decimal = Field(Decimal("1.0"), alias="voice_speed")
+    transmission_amplitude: Decimal = Field(Decimal("1.0"), alias="voice_volume")
+    inference_model_sig: str | None = Field(None, alias="llm_model")
+    stochastic_coefficient: Decimal = Field(Decimal("0.7"), alias="llm_temperature")
+    temporal_ceiling: int = Field(240, ge=60, le=7200, alias="max_call_duration_seconds")
+    silence_threshold: int = Field(8, ge=5, le=1800, alias="end_on_silence_seconds")
+    fallback_logic: str = Field("hang_up", alias="voicemail_detection")
+    observability_sink: str | None = Field(None, alias="webhook_url")
+    telemetry_events: list[str] = Field(default_factory=list, alias="webhook_events")
 
     model_config = ConfigDict(populate_by_name=True)
 

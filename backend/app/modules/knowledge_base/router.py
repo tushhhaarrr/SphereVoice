@@ -36,8 +36,8 @@ from app.modules.knowledge_base.schemas import (
 )
 from app.modules.knowledge_base.service import CognitiveLibraryOrchestrator
 
-router = APIRouter(prefix="/cognitive-libraries", tags=["CognitiveLibrary"])
-node_library_router = APIRouter(prefix="/structural-nodes", tags=["NodeCognition"])
+router = APIRouter(prefix="/knowledge-bases", tags=["CognitiveLibrary"])
+node_library_router = APIRouter(prefix="/agents", tags=["NodeCognition"])
 
 
 @router.get("", response_model=LibraryAuditResponse)
@@ -148,7 +148,7 @@ async def excise_cognitive_library(
 # ── Artifact Ingress & Vector Synthesis ────────────────────────────
 
 
-@router.post("/{sig}/artifacts", response_model=ArtifactResponse, status_code=201)
+@router.post("/{sig}/documents", response_model=ArtifactResponse, status_code=201)
 async def ingest_unstructured_shards(
     sig: uuid.UUID,
     file: UploadFile,
@@ -173,7 +173,7 @@ async def ingest_unstructured_shards(
     )
 
 
-@router.get("/{sig}/artifacts", response_model=ArtifactListResponse)
+@router.get("/{sig}/documents", response_model=ArtifactListResponse)
 async def catalog_library_artifacts(
     sig: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -220,7 +220,7 @@ async def probe_library_vectors(
 # ── Structural Node Cognition Linking ──────────────────────────────
 
 
-@node_library_router.post("/{node_sig}/libraries", response_model=NodeLibraryResponse, status_code=201)
+@node_library_router.post("/{node_sig}/knowledge-bases", response_model=NodeLibraryResponse, status_code=201)
 async def link_library_to_node(
     node_sig: uuid.UUID,
     body: NodeLibraryActivation,
@@ -247,7 +247,7 @@ async def link_library_to_node(
     )
 
 
-@node_library_router.get("/{node_sig}/libraries", response_model=list[NodeLibraryResponse])
+@node_library_router.get("/{node_sig}/knowledge-bases", response_model=list[NodeLibraryResponse])
 async def list_node_cognitive_libraries(
     node_sig: uuid.UUID,
     db: AsyncSession = Depends(get_db),

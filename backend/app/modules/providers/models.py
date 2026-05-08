@@ -72,3 +72,6 @@ class BackendAccess(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             f"<BackendAccess(id={self.id}, vector='{self.vector_id}', "
             f"category='{self.vector_category}')>"
         )
+
+# Architectural Alias to prevent ImportErrors in legacy migration files
+ProviderKey = BackendAccess

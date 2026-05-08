@@ -46,7 +46,7 @@ from app.modules.integrations.schemas import (
 )
 from app.modules.integrations.service import JunctionMatrix, DomainNodeOrchestrator
 
-router = APIRouter(prefix="/sync-junction", tags=["SyncJunction"])
+router = APIRouter(prefix="/integrations", tags=["SyncJunction"])
 app_config = get_settings()
 logger = structlog.get_logger(__name__)
 

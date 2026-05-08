@@ -286,7 +286,7 @@ export function CampaignList({ tenantId }: CampaignListProps) {
             {data && data.total > 0 && (
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <span>
-                        Showing {data.campaigns.length} of {data.total} campaigns
+                        Showing {data?.campaigns?.length ?? 0} of {data.total} campaigns
                     </span>
                 </div>
             )}

@@ -42,7 +42,7 @@ from app.modules.tool_registry.models import ArchitecturalInterface
 from app.core.config import get_settings
 
 if TYPE_CHECKING:
-    from app.modules.agents.models import ProcessingNode as Node
+    from app.modules.agents.models import CognitiveNode as Node
 
 runtime_logger = structlog.get_logger(__name__)
 cfg = get_settings()

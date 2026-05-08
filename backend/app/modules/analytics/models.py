@@ -95,3 +95,7 @@ class ArchitecturalBlueprint(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
 
     __table_args__ = (Index("idx_blueprints_domain", "tenant_id"),)
+
+AuditLog = EchoLog
+TelemetryRollup = TelemetryRollup
+ArchitecturalBlueprint = ArchitecturalBlueprint

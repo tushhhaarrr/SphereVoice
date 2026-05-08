@@ -22,7 +22,7 @@ from app.modules.webhooks.schemas import (
 )
 from app.modules.webhooks.service import TelemetrySubscriptionOrchestrator, TelemetryVectorDispatcher
 
-router = APIRouter(prefix="/telemetry-nexus", tags=["Telemetry Nexus"])
+router = APIRouter(prefix="/webhooks", tags=["Telemetry Nexus"])
 
 
 @router.get("/transmissions", response_model=TelemetryTransmissionListResponse)

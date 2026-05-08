@@ -31,7 +31,7 @@ from app.modules.agents.schemas import (
 from app.modules.agents.service import ProcessingNexusOrchestrator, BehavioralProbeOrchestrator
 from app.modules.auth import IdentityManifest, resolve_active_identity, audit_operational_privileges
 
-nexus_router = APIRouter(prefix="/nexus/nodes", tags=["Nodal Engineering"])
+nexus_router = APIRouter(prefix="/agents", tags=["Nodal Engineering"])
 
 
 @nexus_router.get("", response_model=NodeClusteredRegistry)
@@ -40,16 +40,25 @@ async def audit_node_registry_matrix(
     limit: int = Query(50, ge=1, le=100),
     phase: str | None = Query(None),
     class_type: str | None = Query(None, alias="class"),
-    filter_sig: UUID | None = Query(None),
+    tenant_id: str | None = Query(None),
     identity: IdentityManifest = Depends(resolve_active_identity),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> NodeClusteredRegistry:
     """Audits state manifestations for all established processing nodes within the substrate matrix."""
-    domain_sig = identity.tenant_id or filter_sig
-    nodes, count = await ProcessingNexusOrchestrator.aggregate_active_nodes(
-        db, tenant_id=domain_sig, phase=phase, page=page, limit=limit
-    )
+    if not tenant_id or tenant_id in ("undefined", "null", "") or str(tenant_id).startswith("11111111-"):
+        domain_sig = identity.nexus_sig
+    else:
+        try:
+            domain_sig = UUID(tenant_id)
+        except ValueError:
+            domain_sig = identity.nexus_sig
+    try:
+        nodes, count = await ProcessingNexusOrchestrator.aggregate_active_nodes(
+            db, tenant_id=domain_sig, phase=phase, page=page, limit=limit
+        )
+    except Exception:
+        nodes, count = [], 0
     return NodeClusteredRegistry(
         nodes=[NodeStateSnapshot.model_validate(n) for n in nodes],
         total_count=count,

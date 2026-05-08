@@ -22,7 +22,7 @@ export default function TenantWorkspaceKnowledgeBasePage() {
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
             This workspace only surfaces knowledge bases owned by {tenant.data?.name ?? "this tenant"}
-            {" "}plus Gorillaa-wide global collections.
+            {" "}plus SphereVoice-wide global collections.
           </p>
           <p>
             New knowledge bases created here default to tenant scope so retrieval content stays attached to the

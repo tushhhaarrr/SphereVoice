@@ -37,7 +37,7 @@ from app.modules.phone_numbers.service import IngressConduitOrchestrator
 
 telemetry_logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/conduits", tags=["Ingress Conduit Management"])
+router = APIRouter(prefix="/phone-numbers", tags=["Ingress Conduit Management"])
 
 
 @router.get(
@@ -127,7 +127,7 @@ async def list_conduits(
     )
 
     from app.modules.auth.models import Tenant
-    from app.modules.agents.models import ProcessingNode
+    from app.modules.agents.models import CognitiveNode
 
     tenant_sigs = {c.tenant_id for c in conduits if c.tenant_id}
     node_sigs = {c.node_sig for c in conduits if c.node_sig}
@@ -139,7 +139,7 @@ async def list_conduits(
         tenant_map = {str(r.id): r.name for r in rows}
 
     if node_sigs:
-        rows = await db.execute(select(ProcessingNode.id, ProcessingNode.node_label).where(ProcessingNode.id.in_(node_sigs)))
+        rows = await db.execute(select(CognitiveNode.id, CognitiveNode.node_label).where(CognitiveNode.id.in_(node_sigs)))
         node_map = {str(r.id): r.node_label for r in rows}
 
     enriched = []

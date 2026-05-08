@@ -78,3 +78,12 @@ class IngressConduit(UUIDPrimaryKeyMixin, TenantMixin, Base):
 
     def __repr__(self) -> str:
         return f"<IngressConduit(id={self.id}, vector='{self.ingress_vector}')>"
+# ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
+# Map the legacy name 'PhoneNumber' to your new architectural class
+# Replace 'YourNewClass' with the actual class name found in this file (e.g., IngressConduit)
+
+PhoneNumber = IngressConduit
+
+# MISSING ALIASES CAUSING THE ERROR:
+
+# MISSING ALIASES CAUSING THE ERROR:

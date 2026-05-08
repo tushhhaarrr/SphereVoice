@@ -97,12 +97,10 @@ def _normalize_path(path: str) -> str:
 
 def setup_middleware(app: FastAPI) -> None:
     """Register all middleware on the FastAPI application."""
-
-    # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
+        allow_origins=["*"],
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

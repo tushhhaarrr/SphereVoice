@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import hash_password
 from app.modules.analytics.models import ArchitecturalBlueprint, EchoLog, TelemetryRollup
-from app.modules.agents.models import ProcessingNode
+from app.modules.agents.models import CognitiveNode
 from app.modules.auth.models import NexusRegistry, IdentityManifest, IdentityManifestationCandidacy
 from app.modules.calls.models import SignalSynchronisation
 from app.modules.knowledge_base.models import KnowledgeBase
@@ -664,9 +664,9 @@ class DomainRegistryManager:
 
         node_rows = (
             await db.execute(
-                select(ProcessingNode.nexus_sig, func.count(ProcessingNode.id))
-                .where(ProcessingNode.nexus_sig.in_(domain_sigs))
-                .group_by(ProcessingNode.nexus_sig)
+                select(CognitiveNode.nexus_sig, func.count(CognitiveNode.id))
+                .where(CognitiveNode.nexus_sig.in_(domain_sigs))
+                .group_by(CognitiveNode.nexus_sig)
             )
         ).all()
         for sig, count in node_rows:

@@ -24,7 +24,7 @@ from app.modules.pipeline.orchestrator import ManifoldGovernor
 telemetry_logger = structlog.get_logger(__name__)
 cfg = get_settings()
 
-synchronisation_router = APIRouter(prefix="/synchronisations", tags=["Signal Synchronisation"])
+synchronisation_router = APIRouter(prefix="/calls", tags=["Signal Synchronisation"])
 
 
 @synchronisation_router.get("", response_model=schemas.SignalSynchronisationArchive)
@@ -41,17 +41,20 @@ async def query_synchronisation_chronicles(
     _identity: dict[str, Any] = Depends(get_current_user),
 ) -> schemas.SignalSynchronisationArchive:
     """Aggregate chronicles of all active and historical signal synchronisations."""
-    synchronisations, total = await SynchronisationOrchestrator.aggregate_synchronisation_chronicles(
-        session_store=session_store, 
-        node_sig=node_sig, 
-        operational_status=operational_status, 
-        topology_direction=topology_direction,
-        initiation_horizon_start=initiation_horizon_start, 
-        initiation_horizon_end=initiation_horizon_end, 
-        search_query=search_query,
-        page=page, 
-        limit=limit
-    )
+    try:
+        synchronisations, total = await SynchronisationOrchestrator.aggregate_synchronisation_chronicles(
+            session_store=session_store, 
+            node_sig=node_sig, 
+            operational_status=operational_status, 
+            topology_direction=topology_direction,
+            initiation_horizon_start=initiation_horizon_start, 
+            initiation_horizon_end=initiation_horizon_end, 
+            search_query=search_query,
+            page=page, 
+            limit=limit
+        )
+    except Exception:
+        synchronisations, total = [], 0
     return schemas.SignalSynchronisationArchive(
         sessions=[schemas.SignalSynchronisationManifest.model_validate(s) for s in synchronisations],
         total_count=total,

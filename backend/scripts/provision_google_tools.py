@@ -19,7 +19,10 @@ async def main():
     factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with factory() as db:
-        await db.execute(text("SET LOCAL ROLE SphereVoice_app"))
+        try:
+            await db.execute(text("SET LOCAL ROLE SphereVoice_app"))
+        except Exception:
+            pass  # Role may not exist in dev environments
         await db.execute(text("SET LOCAL app.user_role = 'admin'"))
         await db.execute(text("SET LOCAL app.current_tenant_id = '00000000-0000-0000-0000-000000000000'"))
 

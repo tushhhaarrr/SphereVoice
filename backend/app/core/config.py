@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     DATABASE_ECHO: bool = False
+    DB_APP_ROLE: str = "vox_app"  # Postgres role for RLS. Leave empty to skip SET LOCAL ROLE.
 
     # ── Transport & Cache Substrate ────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -81,6 +82,13 @@ class Settings(BaseSettings):
     CARTESIA_API_KEY: str = ""
     ELEVENLABS_API_KEY: str = ""
     SARVAM_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    CEREBRAS_API_KEY: str = ""
+    INWORLD_API_KEY: str = ""
+    SMALLEST_API_KEY: str = ""
+    AZURE_SPEECH_API_KEY: str = ""
     
     DEFAULT_STT_PROVIDER: str = "soniox"
     DEFAULT_LLM_PROVIDER: str = "openai"
@@ -93,6 +101,8 @@ class Settings(BaseSettings):
 
     # ── Observability & Telemetry ──────────────────────────────
     SENTRY_DSN: str = ""
+    SENTRY_SEND_DEFAULT_PII: bool = False
+    SENTRY_ENABLE_LOGS: bool = False
     SENTRY_TRACES_SAMPLE_RATE: float = 0.1
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"
     OTEL_SERVICE_NAME: str = "signal-stream-backend"

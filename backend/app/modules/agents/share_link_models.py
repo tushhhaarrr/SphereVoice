@@ -72,3 +72,7 @@ class NodeAccessConduit(Base):
     __table_args__ = (
         Index("ix_conduit_credential_active", "credential", "active_mark"),
     )
+# ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
+# Map the legacy name 'AgentShareLink' to your new architectural class
+
+AgentShareLink = NodeAccessConduit

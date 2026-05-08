@@ -19,31 +19,21 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TimestampMixin, UUIDPrimaryKeyMixin
 from app.core.database import Base
 
-# pgvector column type — imported at migration time; defined inline for model
-# We use a raw column type string in the migration, but for the ORM we store
-# embeddings as a list of floats and cast in queries.
+# pgvector column type
 try:
     from pgvector.sqlalchemy import Vector
 except ImportError:
-    # pgvector not installed — Vector type will be unavailable at model import
-    # but the migration DDL handles column creation correctly
-    Vector = None  # type: ignore[assignment,misc]
+    Vector = None  # type: ignore
 
 
 class KnowledgeBase(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Knowledge base container for RAG documents.
-
-    ``sharing_scope`` controls visibility:
-    - ``private``: Only the owning tenant
-    - ``tenant``: All users in the tenant
-    - ``global``: All tenants (Sphere-managed)
-    """
+    """Knowledge base container for RAG documents."""
 
     __tablename__ = "knowledge_bases"
 
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("nexus_registry.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"), # Use 'tenants' to match current DB
         nullable=True,
         index=True,
     )
@@ -62,10 +52,8 @@ class KnowledgeBase(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("identity_manifests.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True # Updated to 'users'
     )
-    # Processing status for async jobs (crawl, embed)
-    # pending → processing → ready | failed
     status: Mapped[str] = mapped_column(
         String(20), server_default=text("'ready'"), nullable=False
     )
@@ -74,9 +62,14 @@ class KnowledgeBase(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     documents: Mapped[list["KBDocument"]] = relationship(
         "KBDocument", back_populates="knowledge_base", cascade="all, delete-orphan"
     )
+
+    # ── FIX: REMOVED back_populates="shard" ──────────────────────────
+    # This prevents the mapper crash because AgentKnowledgeBase doesn't 
+    # use the attribute name 'shard'.
     associated_nodes: Mapped[list["NodeKnowledgeMatrix"]] = relationship(
-        "NodeKnowledgeMatrix", back_populates="shard", cascade="all, delete-orphan"
+        "NodeKnowledgeMatrix", cascade="all, delete-orphan"
     )
+    # ──────────────────────────────────────────────────────────────────
 
     __table_args__ = (
         Index("idx_kb_tenant", "tenant_id"),
@@ -88,7 +81,7 @@ class KnowledgeBase(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class KBDocument(UUIDPrimaryKeyMixin, Base):
-    """Individual document in a knowledge base — either an uploaded file or raw text."""
+    """Individual document in a knowledge base."""
 
     __tablename__ = "kb_documents"
 
@@ -128,11 +121,7 @@ class KBDocument(UUIDPrimaryKeyMixin, Base):
 
 
 class KBEmbedding(UUIDPrimaryKeyMixin, Base):
-    """Vector embedding chunk for RAG retrieval.
-
-    Uses pgvector extension with 1536-dimension vectors
-    (OpenAI text-embedding-3-small).
-    """
+    """Vector embedding chunk for RAG retrieval."""
 
     __tablename__ = "kb_embeddings"
 
@@ -148,8 +137,6 @@ class KBEmbedding(UUIDPrimaryKeyMixin, Base):
     )
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    # embedding column is created via raw DDL in migration (vector(1536))
-    # In the ORM we don't map it directly — queries use text() for vector ops
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, server_default=text("'{}'::jsonb"), nullable=False
     )

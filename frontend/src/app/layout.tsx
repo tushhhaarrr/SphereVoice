@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SphereVoice",
+  title: "SphereVoice | Structural Signal Orchestration",
   description: "Advanced Voice AI Orchestration Platform",
 };
 

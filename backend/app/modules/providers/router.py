@@ -38,7 +38,7 @@ from app.modules.providers.naming import (
 )
 from app.modules.providers.service import VectorRegistry
 
-router = APIRouter(prefix="/resolution-vectors", tags=["ResolutionVectors"])
+router = APIRouter(prefix="/providers", tags=["ResolutionVectors"])
 
 
 def _to_vector_descriptor(vector: object) -> VectorDescriptor:

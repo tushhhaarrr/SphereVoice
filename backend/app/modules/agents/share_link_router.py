@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import set_tenant_context
-from app.modules.agents.models import ProcessingNode
+from app.modules.agents.models import CognitiveNode
 from app.modules.agents.share_link_schemas import (
     ConduitManifestRequest,
     ConduitRegistrySnapshot,
@@ -19,11 +19,11 @@ from app.modules.agents.share_link_schemas import (
 from app.modules.agents.share_link_service import ConduitOrchestrator
 from app.modules.auth import IdentityManifest as User, resolve_active_identity as get_current_user_model
 
-router = APIRouter(prefix="/nexus/conduits", tags=["Nodal Engineering"])
+router = APIRouter(prefix="/agents", tags=["Nodal Engineering"])
 
 
 @router.post(
-    "/{node_sig}/ingress",
+    "/{node_sig}/share-links",
     response_model=ConduitSnapshot,
     status_code=201,
     summary="Manifest a shareable ingress conduit for a processing node",
@@ -39,7 +39,7 @@ async def manifest_nodal_conduit(
     # Administrative identities may have void nexus signatures; resolve from the processing node.
     effective_nexus_sig = user.nexus_sig
     if effective_nexus_sig is None:
-        result = await db.execute(select(ProcessingNode.tenant_id).where(ProcessingNode.id == node_sig))
+        result = await db.execute(select(CognitiveNode.tenant_id).where(CognitiveNode.id == node_sig))
         effective_nexus_sig = result.scalar_one_or_none()
     
     if effective_nexus_sig is None:
@@ -60,7 +60,7 @@ async def manifest_nodal_conduit(
 
 
 @router.get(
-    "/{node_sig}/ingress",
+    "/{node_sig}/share-links",
     response_model=ConduitRegistrySnapshot,
     summary="Survey all access conduits associated with a processing node",
 )
@@ -78,7 +78,7 @@ async def survey_nodal_conduits(
 
 
 @router.delete(
-    "/{node_sig}/ingress/{conduit_id}",
+    "/{node_sig}/share-links/{conduit_id}",
     status_code=204,
     response_class=Response,
     summary="Deactivate a nodal access conduit",

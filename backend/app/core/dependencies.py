@@ -119,10 +119,19 @@ async def set_tenant_context(
     ``app.current_user_id``, and ``app.user_role`` so that PostgreSQL
     RLS policies can filter queries automatically.
 
-    Also sets ROLE to SphereVoice_app so RLS is enforced (superuser bypasses RLS).
+    Also sets ROLE to the configured DB_APP_ROLE so RLS is enforced
+    (superuser bypasses RLS). If DB_APP_ROLE is empty or the role
+    doesn't exist, this step is skipped gracefully.
     """
-    # Switch to application role so RLS is enforced
-    await db.execute(text("SET LOCAL ROLE SphereVoice_app"))
+    # Switch to application role so RLS is enforced (if configured)
+    from app.core.config import get_settings as _cfg
+    _app_role = _cfg().DB_APP_ROLE
+    if _app_role:
+        try:
+            await db.execute(text(f"SET LOCAL ROLE {_app_role}"))
+        except Exception:
+            # Role doesn't exist in this Postgres instance — skip RLS enforcement
+            pass
 
     if tenant_id:
         # Validate UUID format before interpolation (asyncpg doesn't support

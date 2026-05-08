@@ -17,7 +17,7 @@ from app.core.secret_store import SecretStoreError, resolve_stored_secret
 from app.modules.providers.models import BackendAccess as NodalVaultSignature
 
 if TYPE_CHECKING:
-    from app.modules.agents.models import ProcessingNode as Node
+    from app.modules.agents.models import CognitiveNode as Node
 
 runtime_logger = structlog.get_logger(__name__)
 cfg = get_settings()

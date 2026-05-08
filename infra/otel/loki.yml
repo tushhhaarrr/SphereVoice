@@ -48,6 +48,8 @@ compactor:
   compaction_interval: 10m
   retention_delete_delay: 2h
   retention_delete_worker_count: 150
+  # FIX: Required for Loki 3.x retention
+  delete_request_store: filesystem
 
 query_range:
   results_cache:

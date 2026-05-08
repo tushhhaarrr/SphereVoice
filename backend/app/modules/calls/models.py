@@ -136,3 +136,8 @@ class SignalSynchronisation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Ba
             f"topology='{self.topology_direction}', "
             f"phase='{self.operational_status}')>"
         )
+# ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
+# Map legacy names used in Alembic to your new architectural classes
+
+Call = SignalSynchronisation
+CallEvent = SynchronisationTelemetry

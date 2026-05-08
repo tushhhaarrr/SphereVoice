@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import async_session_factory
-from app.modules.agents import ProcessingNode as Node, NodeStateArchive
+from app.modules.agents import CognitiveNode as Node, NodeVersion
 from app.modules.auth import NexusRegistry
 from app.modules.agents.models import NodeKnowledgeMatrix
 from app.modules.calls.service import SynchronisationOrchestrator
@@ -420,7 +420,7 @@ class ManifoldGovernor:
         if not node or node.revision < 1: return node
 
         archive = (await self.session_store.execute(
-            select(NodeStateArchive).where(NodeStateArchive.node_sig == node_sig, NodeStateArchive.revision == node.revision)
+            select(NodeVersion).where(NodeVersion.node_sig == node_sig, NodeVersion.revision == node.revision)
         )).scalar_one_or_none()
         
         if not archive: return node

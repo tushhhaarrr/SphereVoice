@@ -119,7 +119,12 @@ class CalendlyOAuthService:
         tenant_id, _user_id = _verify_oauth_state(state)
 
         # Set RLS (callback has no JWT — security via HMAC state)
-        await db.execute(text("SET LOCAL ROLE SphereVoice_app"))
+        _app_role = settings.DB_APP_ROLE
+        if _app_role:
+            try:
+                await db.execute(text(f"SET LOCAL ROLE {_app_role}"))
+            except Exception:
+                pass
         await db.execute(
             text(f"SET LOCAL app.current_tenant_id = '{tenant_id}'")  # noqa: S608
         )

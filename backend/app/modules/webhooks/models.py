@@ -105,3 +105,7 @@ class TelemetryVectorTransmission(UUIDPrimaryKeyMixin, Base):
         Index("idx_transmissions_sync", "call_id"),
         Index("idx_transmissions_status", "status"),
     )
+# ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
+# Replace 'YourNewWebhookClass' with the actual class name in this file
+Webhook = NexusTelemetrySubscription 
+WebhookDelivery = TelemetryVectorTransmission

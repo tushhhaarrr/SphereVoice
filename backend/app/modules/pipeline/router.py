@@ -19,7 +19,7 @@ from app.modules.calls.service import SynchronisationOrchestrator
 runtime_log = structlog.get_logger(__name__)
 cfg = get_settings()
 
-router = APIRouter(prefix="/signal-hub", tags=["SignalHub"])
+router = APIRouter(prefix="/pipeline", tags=["SignalHub"])
 
 
 @router.get("/status")

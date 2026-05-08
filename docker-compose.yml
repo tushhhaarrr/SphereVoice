@@ -3,8 +3,8 @@ services:
     image: pgvector/pgvector:pg15
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: SphereVoice_dev
+      POSTGRES_PASSWORD: 8877
+      POSTGRES_DB: spherevoice_dev
     ports:
       - "5434:5432"
     volumes:
@@ -34,7 +34,7 @@ services:
     environment:
       APP_NAME: SphereVoice
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/SphereVoice_dev
+      DATABASE_URL: postgresql+asyncpg://postgres:8877@postgres:5432/spherevoice_dev
       REDIS_URL: redis://redis:6379
       CELERY_BROKER_BACKEND: redis
       CELERY_BROKER_URL: redis://redis:6379/1
@@ -75,7 +75,7 @@ services:
     build: ./backend
     command: celery -A app.workers.celery_app worker --loglevel=info
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/SphereVoice_dev
+      DATABASE_URL: postgresql+asyncpg://postgres:8877@postgres:5432/spherevoice_dev
       REDIS_URL: redis://redis:6379
       CELERY_BROKER_BACKEND: redis
       CELERY_BROKER_URL: redis://redis:6379/1

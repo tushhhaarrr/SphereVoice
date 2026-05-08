@@ -29,24 +29,28 @@ interface AppShellProps {
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "SphereVoice.sidebar.collapsed";
 
 export function AppShell({ children }: AppShellProps) {
+    const [mounted, setMounted] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
-        if (typeof window === "undefined") {
-            return false;
-        }
-        return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
-    });
+    const [desktopCollapsed, setDesktopCollapsed] = useState(false);
     const { user } = useAuth();
     const pathname = usePathname();
     const isFullscreenAgentEditor = /^\/agents\/[^/]+$/.test(pathname)
         || /^\/workspace\/[^/]+\/agents\/[^/]+$/.test(pathname);
 
     useEffect(() => {
+        // Read localStorage only on the client to avoid SSR/client mismatch
+        const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+        if (stored === "true") setDesktopCollapsed(true);
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (!mounted) return;
         window.localStorage.setItem(
             SIDEBAR_COLLAPSED_STORAGE_KEY,
             desktopCollapsed ? "true" : "false",
         );
-    }, [desktopCollapsed]);
+    }, [desktopCollapsed, mounted]);
 
     const initials = user?.name
         ? user.name
@@ -101,7 +105,7 @@ export function AppShell({ children }: AppShellProps) {
         <div className="flex h-screen overflow-hidden bg-background">
             {/* Desktop sidebar */}
             <div className="hidden md:flex">
-                <Sidebar collapsed={desktopCollapsed} />
+                <Sidebar collapsed={mounted ? desktopCollapsed : false} />
             </div>
 
             {/* Mobile overlay */}
@@ -146,19 +150,21 @@ export function AppShell({ children }: AppShellProps) {
                         <Menu className="h-5 w-5" />
                     </Button>
 
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hidden md:inline-flex"
-                        onClick={() => setDesktopCollapsed((value) => !value)}
-                        aria-label={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                    >
-                        {desktopCollapsed ? (
-                            <ChevronRight className="h-5 w-5" />
-                        ) : (
-                            <ChevronLeft className="h-5 w-5" />
-                        )}
-                    </Button>
+                    {mounted && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hidden md:inline-flex"
+                            onClick={() => setDesktopCollapsed((value) => !value)}
+                            aria-label={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                        >
+                            {desktopCollapsed ? (
+                                <ChevronRight className="h-5 w-5" />
+                            ) : (
+                                <ChevronLeft className="h-5 w-5" />
+                            )}
+                        </Button>
+                    )}
 
                     <Breadcrumbs className="hidden md:flex" />
 
