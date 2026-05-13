@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 # Ensure the nexus registry is acknowledged in SignalStream metadata
-from app.modules.auth.models import NexusRegistry as _NexusRegistry  # noqa: F401
+from app.modules.auth.models import Tenant as _Tenant  # noqa: F401
 
 
 class NodeAccessConduit(Base):

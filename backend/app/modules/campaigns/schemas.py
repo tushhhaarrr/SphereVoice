@@ -1,4 +1,4 @@
-"""Signal Propagation Matrix — Structural Schemas.
+"""Campaigns Matrix — Structural Schemas.
 
 Request/response models for propagation campaign orchestration, target manifestation, 
 and temporal vector telemetry synthesis.
@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 # ── Propagation Campaign Substrates ──────────────────────────
 
 
-class SignalPropagationIntent(BaseModel):
+class CampaignsIntent(BaseModel):
     """Intent to manifest a new signal propagation campaign."""
 
     name: str = Field(..., min_length=1, max_length=255)
@@ -37,7 +37,7 @@ class SignalPropagationIntent(BaseModel):
     split_ratio_percent: int = Field(default=50, ge=0, le=100, alias="ab_split_percent")
 
 
-class SignalPropagationMutation(BaseModel):
+class CampaignsMutation(BaseModel):
     """Mutation intent for an existing signal propagation campaign state."""
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
@@ -58,7 +58,7 @@ class SignalPropagationMutation(BaseModel):
     split_ratio_percent: int | None = Field(default=None, ge=0, le=100, alias="ab_split_percent")
 
 
-class SignalPropagationManifest(BaseModel):
+class CampaignsManifest(BaseModel):
     """State snapshot of a manifested signal propagation campaign."""
 
     id: uuid.UUID

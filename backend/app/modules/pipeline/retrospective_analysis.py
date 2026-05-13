@@ -16,7 +16,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.modules.calls.service import SynchronisationOrchestrator
+from app.modules.calls.service import VoiceEngineService
 from app.modules.pipeline.extraction_templates import extract_cognitive_vectors as resolve_extraction_fields
 
 logger = structlog.get_logger(__name__)
@@ -67,11 +67,11 @@ async def run_post_synchronisation_analysis(
     abstracted_manifest["_cognitive_provider"] = provider_used
 
     # Persist abstracted manifest to the substrate
-    await SynchronisationOrchestrator.synchronize_operational_state(
+    await VoiceEngineService.update_call(
         session_store=db,
-        sync_sig=sync_sig,
-        telemetry_blob=abstracted_manifest,
-        reconciliation_ts=datetime.now(UTC),
+        call_id=sync_sig,
+        summary=abstracted_manifest,
+        summary_finalized_at=datetime.now(UTC),
     )
     await db.flush()
 

@@ -14,8 +14,18 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Loader2, ShieldCheck } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998";
+/**
+ * Safely constructs API URLs to prevent /api/v1/api/v1 duplication.
+ */
+const getApiUrl = (endpoint: string) => {
+    const base = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
+        .replace(/\/api\/v1\/?$/, "")
+        .replace(/\/+$/, "");
+    const cleanEndpoint = endpoint.replace(/^\/+/, "");
+    return `${base}/api/v1/${cleanEndpoint}`;
+};
 
 interface InviteInfo {
     email: string;
@@ -41,7 +51,7 @@ export default function AcceptInvitePage() {
 
     /* ── Load invite info ─────────────────────────────────── */
     useEffect(() => {
-        fetch(`${API_BASE}/api/v1/auth/invite/${params.token}`)
+        fetch(getApiUrl(`auth/invite/${params.token}`))
             .then(async (res) => {
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -75,7 +85,7 @@ export default function AcceptInvitePage() {
 
         try {
             const res = await fetch(
-                `${API_BASE}/api/v1/auth/invite/${params.token}/accept`,
+                getApiUrl(`auth/invite/${params.token}/accept`),
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -115,21 +125,24 @@ export default function AcceptInvitePage() {
     /* ── Render ───────────────────────────────────────────── */
     return (
         <div className="flex min-h-screen items-center justify-center bg-background px-4">
-            <div className="w-full max-w-sm space-y-6">
+            <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background" />
+            <div className="z-10 w-full max-w-sm space-y-6 animate-in fade-in zoom-in-95 duration-500">
                 {/* Header */}
                 <div className="space-y-1 text-center">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/25">
+                        <ShieldCheck className="h-6 w-6" />
+                    </div>
                     <h1 className="text-3xl font-bold tracking-tight">SphereVoice</h1>
                     <p className="text-sm text-muted-foreground">
-                        Voice AI Agent Platform by SphereVoice
+                        Enterprise Voice AI Platform
                     </p>
                 </div>
 
                 {/* Loading */}
                 {pageState === "loading" && (
-                    <div className="space-y-3">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
-                        ))}
+                    <div className="flex flex-col items-center justify-center space-y-3 rounded-xl border bg-card/50 p-8 shadow-sm backdrop-blur-sm">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">Verifying invitation...</p>
                     </div>
                 )}
 
@@ -158,8 +171,8 @@ export default function AcceptInvitePage() {
 
                 {/* Form */}
                 {pageState === "valid" && invite && (
-                    <form onSubmit={handleAccept} className="space-y-4">
-                        <div className="rounded-lg border bg-card p-4 text-sm space-y-1">
+                    <form onSubmit={handleAccept} className="space-y-4 rounded-xl border bg-card p-6 shadow-sm backdrop-blur-sm">
+                        <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-1">
                             <p className="font-medium">You're invited!</p>
                             <p className="text-muted-foreground">
                                 <span className="font-mono">{invite.email}</span> —{" "}
@@ -219,7 +232,14 @@ export default function AcceptInvitePage() {
                             disabled={submitting || !name.trim() || !password || !confirmPassword}
                             className="w-full"
                         >
-                            {submitting ? "Creating account…" : "Create account & sign in"}
+                            {submitting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Creating account…
+                                </>
+                            ) : (
+                                "Create account & sign in"
+                            )}
                         </Button>
                     </form>
                 )}

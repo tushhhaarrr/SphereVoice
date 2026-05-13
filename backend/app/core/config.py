@@ -132,6 +132,8 @@ class Settings(BaseSettings):
     ZOHO_CRM_CLIENT_SECRET: str = ""
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_CALENDAR_REDIRECT_URI: str = ""
+    GOOGLE_SHEETS_REDIRECT_URI: str = ""
     HUBSPOT_CLIENT_ID: str = ""
     SALESFORCE_CLIENT_ID: str = ""
 

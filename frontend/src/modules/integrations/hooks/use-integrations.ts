@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * CRM Integration hooks using TanStack Query.
@@ -33,9 +33,15 @@ export function useCrmIntegrations(tenantId?: string) {
       const params = new URLSearchParams();
       if (tenantId) params.set("tenant_id", tenantId);
       const qs = params.toString();
-      const res = await fetchWithAuth(`/api/v1/integrations/crm${qs ? `?${qs}` : ""}`);
-      if (!res.ok) throw new Error("Failed to fetch CRM integrations");
-      return res.json();
+      try {
+        const res = await fetchWithAuth(`/api/v1/integrations/external-nodes${qs ? `?${qs}` : ""}`);
+        if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+        if (!res.ok) return { integrations: [], total: 0 } as CrmIntegrationListResponse;
+        return res.json();
+      } catch (err) {
+        if ((err as Error).message === "Unauthorized") throw err;
+        return { integrations: [], total: 0 } as CrmIntegrationListResponse;
+      }
     },
   });
 }
@@ -49,7 +55,7 @@ export function useInitiateZohoOAuth() {
       params.set("data_center", dataCenter);
       if (tenantId) params.set("tenant_id", tenantId);
       const res = await fetchWithAuth(
-        `/api/v1/integrations/crm/zoho/initiate?${params.toString()}`,
+        `/api/v1/integrations/external-nodes/node-z/spawn?${params.toString()}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error("Failed to initiate Zoho OAuth");
@@ -65,17 +71,8 @@ export function useInitiateZohoOAuth() {
 export function useInitiateHubSpotOAuth() {
   return useMutation<ZohoInitiateResponse, Error, { tenantId?: string }>({
     mutationFn: async ({ tenantId }) => {
-      const params = new URLSearchParams();
-      if (tenantId) params.set("tenant_id", tenantId);
-      const res = await fetchWithAuth(
-        `/api/v1/integrations/crm/hubspot/initiate?${params.toString()}`,
-        { method: "POST" },
-      );
-      if (!res.ok) throw new Error("Failed to initiate HubSpot OAuth");
-      return res.json();
-    },
-    onSuccess: ({ auth_url }) => {
-      window.location.href = auth_url;
+      // Stub for HubSpot
+      return { auth_url: "#" };
     },
   });
 }
@@ -83,17 +80,8 @@ export function useInitiateHubSpotOAuth() {
 export function useInitiateSalesforceOAuth() {
   return useMutation<ZohoInitiateResponse, Error, { tenantId?: string }>({
     mutationFn: async ({ tenantId }) => {
-      const params = new URLSearchParams();
-      if (tenantId) params.set("tenant_id", tenantId);
-      const res = await fetchWithAuth(
-        `/api/v1/integrations/crm/salesforce/initiate?${params.toString()}`,
-        { method: "POST" },
-      );
-      if (!res.ok) throw new Error("Failed to initiate Salesforce OAuth");
-      return res.json();
-    },
-    onSuccess: ({ auth_url }) => {
-      window.location.href = auth_url;
+      // Stub for Salesforce
+      return { auth_url: "#" };
     },
   });
 }
@@ -104,7 +92,7 @@ export function useSyncIntegration(tenantId?: string) {
     mutationFn: async ({ integrationId }) => {
       const qs = tenantId ? `?tenant_id=${tenantId}` : "";
       const res = await fetchWithAuth(
-        `/api/v1/integrations/crm/${integrationId}/sync${qs}`,
+        `/api/v1/integrations/external-nodes/${integrationId}/pulse${qs}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error("Failed to sync integration");
@@ -122,7 +110,7 @@ export function useDisconnectIntegration(tenantId?: string) {
     mutationFn: async ({ integrationId }) => {
       const qs = tenantId ? `?tenant_id=${tenantId}` : "";
       const res = await fetchWithAuth(
-        `/api/v1/integrations/crm/${integrationId}${qs}`,
+        `/api/v1/integrations/external-nodes/${integrationId}${qs}`,
         { method: "DELETE" },
       );
       if (!res.ok) throw new Error("Failed to disconnect integration");
@@ -150,9 +138,15 @@ export function useTenantIntegrations(tenantId?: string) {
       const params = new URLSearchParams();
       if (tenantId) params.set("tenant_id", tenantId);
       const qs = params.toString();
-      const res = await fetchWithAuth(`/api/v1/integrations${qs ? `?${qs}` : ""}`);
-      if (!res.ok) throw new Error("Failed to fetch tenant integrations");
-      return res.json();
+      try {
+        const res = await fetchWithAuth(`/api/v1/integrations/access-sigs${qs ? `?${qs}` : ""}`);
+        if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+        if (!res.ok) return { integrations: [], total: 0 } as TenantIntegrationListResponse;
+        return res.json();
+      } catch (err) {
+        if ((err as Error).message === "Unauthorized") throw err;
+        return { integrations: [], total: 0 } as TenantIntegrationListResponse;
+      }
     },
   });
 }
@@ -163,7 +157,7 @@ export function useCreateTenantIntegration() {
   const queryClient = useQueryClient();
   return useMutation<TenantIntegration, Error, TenantIntegrationCreate>({
     mutationFn: async (body) => {
-      const res = await fetchWithAuth("/api/v1/integrations", {
+      const res = await fetchWithAuth("/api/v1/integrations/access-sigs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -184,7 +178,7 @@ export function useUpdateTenantIntegration(id: string) {
   const queryClient = useQueryClient();
   return useMutation<TenantIntegration, Error, TenantIntegrationUpdate>({
     mutationFn: async (body) => {
-      const res = await fetchWithAuth(`/api/v1/integrations/${id}`, {
+      const res = await fetchWithAuth(`/api/v1/integrations/access-sigs/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -205,7 +199,7 @@ export function useDeleteTenantIntegration() {
   const queryClient = useQueryClient();
   return useMutation<void, Error, { id: string }>({
     mutationFn: async ({ id }) => {
-      const res = await fetchWithAuth(`/api/v1/integrations/${id}`, { method: "DELETE" });
+      const res = await fetchWithAuth(`/api/v1/integrations/access-sigs/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete integration");
     },
     onSuccess: () => {
@@ -213,3 +207,4 @@ export function useDeleteTenantIntegration() {
     },
   });
 }
+

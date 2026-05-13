@@ -1,6 +1,6 @@
-"""Signal Synchronisation Module — SignalStream substrate exports."""
+"""Voice Engine Module — SignalStream substrate exports."""
 
-from app.modules.calls.models import SignalSynchronisation, SynchronisationTelemetry
-from app.modules.calls.service import SynchronisationOrchestrator
+from app.modules.calls.models import VoiceEngine, SynchronisationTelemetry
+from app.modules.calls.service import VoiceEngineService
 
-__all__ = ["SignalSynchronisation", "SynchronisationTelemetry", "SynchronisationOrchestrator"]
+__all__ = ["VoiceEngine", "SynchronisationTelemetry", "VoiceEngineService"]

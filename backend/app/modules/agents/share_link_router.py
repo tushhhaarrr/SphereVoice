@@ -17,9 +17,9 @@ from app.modules.agents.share_link_schemas import (
     ConduitSnapshot,
 )
 from app.modules.agents.share_link_service import ConduitOrchestrator
-from app.modules.auth import IdentityManifest as User, resolve_active_identity as get_current_user_model
+from app.modules.auth import User, resolve_active_identity as get_current_user_model
 
-router = APIRouter(prefix="/agents", tags=["Nodal Engineering"])
+router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
 @router.post(
@@ -37,7 +37,7 @@ async def manifest_nodal_conduit(
 ) -> ConduitSnapshot:
     """Manifests a new ingress conduit within the SignalStream substrate."""
     # Administrative identities may have void nexus signatures; resolve from the processing node.
-    effective_nexus_sig = user.nexus_sig
+    effective_nexus_sig = user.tenant_id
     if effective_nexus_sig is None:
         result = await db.execute(select(CognitiveNode.tenant_id).where(CognitiveNode.id == node_sig))
         effective_nexus_sig = result.scalar_one_or_none()

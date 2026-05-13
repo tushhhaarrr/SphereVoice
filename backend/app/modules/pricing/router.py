@@ -1,4 +1,4 @@
-"""Spectral Benchmarks Module — API endpoints."""
+"""Billing Module — API endpoints."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from app.modules.pricing.exchange_rate import SubstrateConversionService
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/benchmarks", tags=["Spectral Benchmarks"])
+router = APIRouter(prefix="/billing", tags=["Billing"])
 
 
 # ── Helpers ──────────────────────────────────────────────
@@ -241,9 +241,9 @@ async def seed_benchmarks(
 
     Upserts structural benchmarks — calibrates new entries and updates existing magnitudes.
     """
-    from app.modules.pricing.seed_pricing import seed_spectral_benchmarks
+    from app.modules.pricing.seed_pricing import seed_billing
 
-    count = await seed_spectral_benchmarks(db)
+    count = await seed_billing(db)
     await db.commit()
     return {"calibrated": count, "message": f"Seeded {count} architectural benchmarks"}
 

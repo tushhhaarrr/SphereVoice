@@ -23,8 +23,8 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import hash_password
 from app.modules.analytics.models import ArchitecturalBlueprint, EchoLog, TelemetryRollup
 from app.modules.agents.models import CognitiveNode
-from app.modules.auth.models import NexusRegistry, IdentityManifest, IdentityManifestationCandidacy
-from app.modules.calls.models import SignalSynchronisation
+from app.modules.auth.models import Tenant, User, UserInvitation
+from app.modules.calls.models import VoiceEngine
 from app.modules.knowledge_base.models import KnowledgeBase
 from app.modules.phone_numbers.models import IngressConduit
 
@@ -140,19 +140,19 @@ class ObservabilityCortex:
         e_dt = datetime.combine(horizon_end, datetime.max.time(), tzinfo=UTC)
 
         mask = [
-            SignalSynchronisation.initiation_timestamp >= s_dt,
-            SignalSynchronisation.initiation_timestamp <= e_dt,
+            VoiceEngine.initiation_timestamp >= s_dt,
+            VoiceEngine.initiation_timestamp <= e_dt,
         ]
         if nexus_sig:
-            mask.append(SignalSynchronisation.nexus_sig == nexus_sig)
+            mask.append(VoiceEngine.nexus_sig == nexus_sig)
         if node_sig:
-            mask.append(SignalSynchronisation.node_sig == node_sig)
+            mask.append(VoiceEngine.node_sig == node_sig)
 
         agg = select(
-            func.count(SignalSynchronisation.id).label("total_signals"),
-            func.coalesce(func.avg(SignalSynchronisation.duration_interval), 0).label("avg_duration"),
-            func.coalesce(func.sum(SignalSynchronisation.duration_interval), 0).label("total_duration"),
-            func.coalesce(func.avg(SignalSynchronisation.avg_transmission_delay), 0).label("avg_latency"),
+            func.count(VoiceEngine.id).label("total_signals"),
+            func.coalesce(func.avg(VoiceEngine.duration_interval), 0).label("avg_duration"),
+            func.coalesce(func.sum(VoiceEngine.duration_interval), 0).label("total_duration"),
+            func.coalesce(func.avg(VoiceEngine.avg_transmission_delay), 0).label("avg_latency"),
         ).where(*mask)
 
         res = await db.execute(agg)
@@ -165,7 +165,7 @@ class ObservabilityCortex:
 
         if total > 0:
             st_agg = select(
-                func.count(SignalSynchronisation.id).filter(SignalSynchronisation.operational_status == "completed").label("comp"),
+                func.count(VoiceEngine.id).filter(VoiceEngine.operational_status == "completed").label("comp"),
             ).where(*mask)
             st_res = await db.execute(st_agg)
             st_row = st_res.one()
@@ -179,18 +179,18 @@ class ObservabilityCortex:
         pe_dt = datetime.combine(horizon_start - timedelta(days=1), datetime.max.time(), tzinfo=UTC)
 
         p_mask = [
-            SignalSynchronisation.initiation_timestamp >= ps_dt,
-            SignalSynchronisation.initiation_timestamp <= pe_dt,
+            VoiceEngine.initiation_timestamp >= ps_dt,
+            VoiceEngine.initiation_timestamp <= pe_dt,
         ]
         if nexus_sig:
-            p_mask.append(SignalSynchronisation.nexus_sig == nexus_sig)
+            p_mask.append(VoiceEngine.nexus_sig == nexus_sig)
         if node_sig:
-            p_mask.append(SignalSynchronisation.node_sig == node_sig)
+            p_mask.append(VoiceEngine.node_sig == node_sig)
 
         p_agg = select(
-            func.count(SignalSynchronisation.id).label("total"),
-            func.coalesce(func.avg(SignalSynchronisation.duration_interval), 0).label("dur"),
-            func.coalesce(func.avg(SignalSynchronisation.avg_transmission_delay), 0).label("lat"),
+            func.count(VoiceEngine.id).label("total"),
+            func.coalesce(func.avg(VoiceEngine.duration_interval), 0).label("dur"),
+            func.coalesce(func.avg(VoiceEngine.avg_transmission_delay), 0).label("lat"),
         ).where(*p_mask)
 
         p_res = await db.execute(p_agg)
@@ -202,7 +202,7 @@ class ObservabilityCortex:
 
         p_suc_rate = 0.0
         if p_total > 0:
-            pc_agg = select(func.count(SignalSynchronisation.id)).where(*p_mask, SignalSynchronisation.operational_status == "completed")
+            pc_agg = select(func.count(VoiceEngine.id)).where(*p_mask, VoiceEngine.operational_status == "completed")
             pc = (await db.execute(pc_agg)).scalar_one()
             p_suc_rate = round(int(pc) / p_total, 4)
 
@@ -245,29 +245,29 @@ class ObservabilityCortex:
         e_dt = datetime.combine(e, datetime.max.time(), tzinfo=UTC)
 
         mask = [
-            SignalSynchronisation.initiation_timestamp >= s_dt,
-            SignalSynchronisation.initiation_timestamp <= e_dt,
+            VoiceEngine.initiation_timestamp >= s_dt,
+            VoiceEngine.initiation_timestamp <= e_dt,
         ]
         if nexus_sig:
-            mask.append(SignalSynchronisation.nexus_sig == nexus_sig)
+            mask.append(VoiceEngine.nexus_sig == nexus_sig)
         if node_sig:
-            mask.append(SignalSynchronisation.node_sig == node_sig)
+            mask.append(VoiceEngine.node_sig == node_sig)
 
-        trunc = func.date_trunc(granularity if granularity in ("week", "month") else "day", SignalSynchronisation.initiation_timestamp)
+        trunc = func.date_trunc(granularity if granularity in ("week", "month") else "day", VoiceEngine.initiation_timestamp)
 
         if metric == "call_count":
-            agg = func.count(SignalSynchronisation.id)
+            agg = func.count(VoiceEngine.id)
         elif metric == "avg_duration":
-            agg = func.coalesce(func.avg(SignalSynchronisation.duration_interval), 0)
+            agg = func.coalesce(func.avg(VoiceEngine.duration_interval), 0)
         elif metric == "avg_latency":
-            agg = func.coalesce(func.avg(SignalSynchronisation.avg_transmission_delay), 0)
+            agg = func.coalesce(func.avg(VoiceEngine.avg_transmission_delay), 0)
         elif metric == "success_rate":
             agg = case(
-                (func.count(SignalSynchronisation.id) > 0, func.count(SignalSynchronisation.id).filter(SignalSynchronisation.operational_status == "completed") * 1.0 / func.count(SignalSynchronisation.id)),
+                (func.count(VoiceEngine.id) > 0, func.count(VoiceEngine.id).filter(VoiceEngine.operational_status == "completed") * 1.0 / func.count(VoiceEngine.id)),
                 else_=0.0,
             )
         else:
-            agg = func.count(SignalSynchronisation.id)
+            agg = func.count(VoiceEngine.id)
 
         flux = (
             select(trunc.label("p"), agg.label("v"))
@@ -298,20 +298,20 @@ class ObservabilityCortex:
         e_dt = datetime.combine(e, datetime.max.time(), tzinfo=UTC)
 
         mask = [
-            SignalSynchronisation.initiation_timestamp >= s_dt,
-            SignalSynchronisation.initiation_timestamp <= e_dt,
+            VoiceEngine.initiation_timestamp >= s_dt,
+            VoiceEngine.initiation_timestamp <= e_dt,
         ]
         if nexus_sig:
-            mask.append(SignalSynchronisation.nexus_sig == nexus_sig)
+            mask.append(VoiceEngine.nexus_sig == nexus_sig)
         if node_sig:
-            mask.append(SignalSynchronisation.node_sig == node_sig)
+            mask.append(VoiceEngine.node_sig == node_sig)
 
-        load = SignalSynchronisation.extracted_data != text("'{}'::jsonb")
+        load = VoiceEngine.extracted_data != text("'{}'::jsonb")
 
-        total = (await db.execute(select(func.count(SignalSynchronisation.id)).where(*mask))).scalar_one()
+        total = (await db.execute(select(func.count(VoiceEngine.id)).where(*mask))).scalar_one()
 
-        tagged_op = select(func.count(SignalSynchronisation.id)).where(
-            *mask, load, SignalSynchronisation.extracted_data.isnot(None)
+        tagged_op = select(func.count(VoiceEngine.id)).where(
+            *mask, load, VoiceEngine.extracted_data.isnot(None)
         )
         tagged = (await db.execute(tagged_op)).scalar_one()
 
@@ -319,14 +319,14 @@ class ObservabilityCortex:
 
         if tagged > 0:
             ok_op = select(
-                func.count(SignalSynchronisation.id).filter(SignalSynchronisation.extracted_data["call_successful"].astext == "true"),
-            ).where(*mask, load, SignalSynchronisation.extracted_data.isnot(None))
+                func.count(VoiceEngine.id).filter(VoiceEngine.extracted_data["call_successful"].astext == "true"),
+            ).where(*mask, load, VoiceEngine.extracted_data.isnot(None))
             ok = (await db.execute(ok_op)).scalar_one()
             pure = round(ok / tagged * 100, 1)
 
             bad_op = select(
-                func.count(SignalSynchronisation.id).filter(SignalSynchronisation.extracted_data["customer_frustrated"].astext == "true"),
-            ).where(*mask, load, SignalSynchronisation.extracted_data.isnot(None))
+                func.count(VoiceEngine.id).filter(VoiceEngine.extracted_data["customer_frustrated"].astext == "true"),
+            ).where(*mask, load, VoiceEngine.extracted_data.isnot(None))
             bad = (await db.execute(bad_op)).scalar_one()
             friction = round(bad / tagged * 100, 1)
 
@@ -336,30 +336,30 @@ class ObservabilityCortex:
         pe_dt = datetime.combine(s - timedelta(days=1), datetime.max.time(), tzinfo=UTC)
 
         p_mask = [
-            SignalSynchronisation.initiation_timestamp >= ps_dt,
-            SignalSynchronisation.initiation_timestamp <= pe_dt,
+            VoiceEngine.initiation_timestamp >= ps_dt,
+            VoiceEngine.initiation_timestamp <= pe_dt,
         ]
         if nexus_sig:
-            p_mask.append(SignalSynchronisation.nexus_sig == nexus_sig)
+            p_mask.append(VoiceEngine.nexus_sig == nexus_sig)
         if node_sig:
-            p_mask.append(SignalSynchronisation.node_sig == node_sig)
+            p_mask.append(VoiceEngine.node_sig == node_sig)
 
-        p_tagged_op = select(func.count(SignalSynchronisation.id)).where(
-            *p_mask, load, SignalSynchronisation.extracted_data.isnot(None)
+        p_tagged_op = select(func.count(VoiceEngine.id)).where(
+            *p_mask, load, VoiceEngine.extracted_data.isnot(None)
         )
         p_tagged = (await db.execute(p_tagged_op)).scalar_one()
 
         p_pure, p_fric = 0.0, 0.0
         if p_tagged > 0:
             p_ok_op = select(
-                func.count(SignalSynchronisation.id).filter(SignalSynchronisation.extracted_data["call_successful"].astext == "true"),
-            ).where(*p_mask, load, SignalSynchronisation.extracted_data.isnot(None))
+                func.count(VoiceEngine.id).filter(VoiceEngine.extracted_data["call_successful"].astext == "true"),
+            ).where(*p_mask, load, VoiceEngine.extracted_data.isnot(None))
             p_ok = (await db.execute(p_ok_op)).scalar_one()
             p_pure = round(p_ok / p_tagged * 100, 1)
 
             p_bad_op = select(
-                func.count(SignalSynchronisation.id).filter(SignalSynchronisation.extracted_data["customer_frustrated"].astext == "true"),
-            ).where(*p_mask, load, SignalSynchronisation.extracted_data.isnot(None))
+                func.count(VoiceEngine.id).filter(VoiceEngine.extracted_data["customer_frustrated"].astext == "true"),
+            ).where(*p_mask, load, VoiceEngine.extracted_data.isnot(None))
             p_bad = (await db.execute(p_bad_op)).scalar_one()
             p_fric = round(p_bad / p_tagged * 100, 1)
 
@@ -509,26 +509,26 @@ class IdentityMatrixManager:
         search: str | None = None,
         page: int = 1,
         limit: int = 50,
-    ) -> tuple[list[IdentityManifest], int]:
+    ) -> tuple[list[User], int]:
         """Audits the identity registry matrix with specified structural filters."""
-        flux = select(IdentityManifest)
+        flux = select(User)
 
         if domain_sig is not None:
-            flux = flux.where(IdentityManifest.nexus_sig == domain_sig)
+            flux = flux.where(User.tenant_id == domain_sig)
         if privilege_tier:
-            flux = flux.where(IdentityManifest.privilege_tier == privilege_tier)
+            flux = flux.where(User.role == privilege_tier)
         if operational is not None:
-            flux = flux.where(IdentityManifest.active_mark == operational)
+            flux = flux.where(User.is_active == operational)
         if search:
             m = f"%{search}%"
             flux = flux.where(
-                (IdentityManifest.spectral_identity.ilike(m)) | (IdentityManifest.node_label.ilike(m))
+                (User.email.ilike(m)) | (User.name.ilike(m))
             )
 
         count_op = select(func.count()).select_from(flux.subquery())
         total = (await db.execute(count_op)).scalar_one()
 
-        flux = flux.order_by(IdentityManifest.inception_timestamp.desc()).offset((page - 1) * limit).limit(limit)
+        flux = flux.order_by(User.created_at.desc()).offset((page - 1) * limit).limit(limit)
 
         res = await db.execute(flux)
         return list(res.scalars().all()), total
@@ -563,19 +563,19 @@ class IdentityMatrixManager:
         label: str | None = None,
         privilege_tier: str | None = None,
         operational: bool | None = None,
-    ) -> IdentityManifest:
+    ) -> User:
         """Mutates the state matrix of an established identity."""
-        res = await db.execute(select(IdentityManifest).where(IdentityManifest.id == identity_sig))
+        res = await db.execute(select(User).where(User.id == identity_sig))
         u = res.scalar_one_or_none()
         if u is None:
             raise NotFoundError("Identity", str(identity_sig))
 
         if label is not None:
-            u.node_label = label
+            u.name = label
         if privilege_tier is not None:
-            u.privilege_tier = privilege_tier
+            u.role = privilege_tier
         if operational is not None:
-            u.active_mark = operational
+            u.is_active = operational
 
         await db.flush()
         await db.refresh(u)
@@ -585,9 +585,9 @@ class IdentityMatrixManager:
     async def capture_identity_snapshot(
         db: AsyncSession,
         identity_sig: UUID,
-    ) -> IdentityManifest:
+    ) -> User:
         """Captures a state snapshot of an established identity."""
-        res = await db.execute(select(IdentityManifest).where(IdentityManifest.id == identity_sig))
+        res = await db.execute(select(User).where(User.id == identity_sig))
         u = res.scalar_one_or_none()
         if u is None:
             raise NotFoundError("Identity", str(identity_sig))
@@ -596,13 +596,13 @@ class IdentityMatrixManager:
     @staticmethod
     async def audit_pending_manifestations(
         db: AsyncSession,
-    ) -> list[IdentityManifestInvitation]:
+    ) -> list[UserInvitation]:
         """Audits all pending identity manifestation intents."""
         res = await db.execute(
-            select(IdentityManifestInvitation)
-            .where(IdentityManifestInvitation.manifestation_timestamp.is_(None))
-            .where(IdentityManifestInvitation.active_mark == True)
-            .order_by(IdentityManifestInvitation.inception_timestamp.desc())
+            select(UserInvitation)
+            .where(UserInvitation.manifested_at.is_(None))
+            .where(UserInvitation.is_active == True)
+            .order_by(UserInvitation.created_at.desc())
         )
         return list(res.scalars().all())
 
@@ -612,11 +612,11 @@ class IdentityMatrixManager:
         intent_sig: UUID,
     ) -> None:
         """Voids a pending identity manifestation intent."""
-        res = await db.execute(select(IdentityManifestInvitation).where(IdentityManifestInvitation.id == intent_sig))
+        res = await db.execute(select(UserInvitation).where(UserInvitation.id == intent_sig))
         inv = res.scalar_one_or_none()
         if inv is None:
             raise NotFoundError("IdentityInvitation", str(intent_sig))
-        inv.active_mark = False
+        inv.is_active = False
         await db.flush()
 
 
@@ -653,9 +653,9 @@ class DomainRegistryManager:
 
         id_rows = (
             await db.execute(
-                select(IdentityManifest.nexus_sig, func.count(IdentityManifest.id))
-                .where(IdentityManifest.nexus_sig.in_(domain_sigs))
-                .group_by(IdentityManifest.nexus_sig)
+                select(User.tenant_id, func.count(User.id))
+                .where(User.tenant_id.in_(domain_sigs))
+                .group_by(User.tenant_id)
             )
         ).all()
         for sig, count in id_rows:
@@ -675,9 +675,9 @@ class DomainRegistryManager:
 
         sig_rows = (
             await db.execute(
-                select(SignalSynchronisation.nexus_sig, func.count(SignalSynchronisation.id))
-                .where(SignalSynchronisation.nexus_sig.in_(domain_sigs))
-                .group_by(SignalSynchronisation.nexus_sig)
+                select(VoiceEngine.nexus_sig, func.count(VoiceEngine.id))
+                .where(VoiceEngine.nexus_sig.in_(domain_sigs))
+                .group_by(VoiceEngine.nexus_sig)
             )
         ).all()
         for sig, count in sig_rows:
@@ -694,22 +694,22 @@ class DomainRegistryManager:
         phase: str | None = None,
         page: int = 1,
         limit: int = 50,
-    ) -> tuple[list[NexusRegistry], int, dict[UUID, dict[str, int]]]:
+    ) -> tuple[list[Tenant], int, dict[UUID, dict[str, int]]]:
         """Audits the domain registry substrate with specified structural filters."""
-        flux = select(NexusRegistry)
+        flux = select(Tenant)
 
         if search:
             m = f"%{search}%"
             flux = flux.where(
-                NexusRegistry.node_label.ilike(m) | NexusRegistry.registry_shard.ilike(m)
+                Tenant.label.ilike(m) | Tenant.registry_shard.ilike(m)
             )
         if phase:
-            flux = flux.where(NexusRegistry.operational_phase == phase)
+            flux = flux.where(Tenant.operational_phase == phase)
 
         count_op = select(func.count()).select_from(flux.subquery())
         total = (await db.execute(count_op)).scalar_one()
 
-        flux = flux.order_by(NexusRegistry.inception_timestamp.desc()).offset((page - 1) * limit).limit(limit)
+        flux = flux.order_by(Tenant.created_at.desc()).offset((page - 1) * limit).limit(limit)
         domains = list((await db.execute(flux)).scalars().all())
         weights = await DomainRegistryManager._audit_resource_weights(
             db, [d.id for d in domains]
@@ -720,9 +720,9 @@ class DomainRegistryManager:
     async def capture_domain_snapshot(
         db: AsyncSession,
         domain_sig: UUID,
-    ) -> tuple[NexusRegistry, dict[str, int]]:
+    ) -> tuple[Tenant, dict[str, int]]:
         """Captures a state snapshot of an established administrative domain."""
-        res = await db.execute(select(NexusRegistry).where(NexusRegistry.id == domain_sig))
+        res = await db.execute(select(Tenant).where(Tenant.id == domain_sig))
         d = res.scalar_one_or_none()
         if d is None:
             raise NotFoundError("Domain", str(domain_sig))
@@ -746,18 +746,18 @@ class DomainRegistryManager:
         signature: str | None = None,
         phase: str = "operational",
         structural_meta: dict[str, object] | None = None,
-    ) -> NexusRegistry:
+    ) -> Tenant:
         """Manifests a new administrative domain within the substrate."""
         norm_sig = DomainRegistryManager._normalize_signature(signature or node_label)
-        res = await db.execute(select(NexusRegistry).where(NexusRegistry.registry_shard == norm_sig))
+        res = await db.execute(select(Tenant).where(Tenant.registry_shard == norm_sig))
         if res.scalar_one_or_none() is not None:
             raise ConflictError(
                 f"Domain with signature '{norm_sig}' already exists",
                 details={"signature": norm_sig},
             )
 
-        d = NexusRegistry(
-            node_label=node_label,
+        d = Tenant(
+            label=node_label,
             registry_shard=norm_sig,
             operational_phase=phase,
             architectural_metadata=structural_meta or {},
@@ -776,9 +776,9 @@ class DomainRegistryManager:
         signature: str | None = None,
         phase: str | None = None,
         structural_meta: dict[str, object] | None = None,
-    ) -> NexusRegistry:
+    ) -> Tenant:
         """Mutates the state matrix of an established administrative domain."""
-        res = await db.execute(select(NexusRegistry).where(NexusRegistry.id == domain_sig))
+        res = await db.execute(select(Tenant).where(Tenant.id == domain_sig))
         d = res.scalar_one_or_none()
         if d is None:
             raise NotFoundError("Domain", str(domain_sig))
@@ -786,7 +786,7 @@ class DomainRegistryManager:
         if signature is not None:
             norm_sig = DomainRegistryManager._normalize_signature(signature)
             conflict_res = await db.execute(
-                select(NexusRegistry).where(NexusRegistry.registry_shard == norm_sig, NexusRegistry.id != domain_sig)
+                select(Tenant).where(Tenant.registry_shard == norm_sig, Tenant.id != domain_sig)
             )
             if conflict_res.scalar_one_or_none() is not None:
                 raise ConflictError(
@@ -796,7 +796,7 @@ class DomainRegistryManager:
             d.registry_shard = norm_sig
 
         if node_label is not None:
-            d.node_label = node_label
+            d.label = node_label
         if phase is not None:
             d.operational_phase = phase
         if structural_meta is not None:

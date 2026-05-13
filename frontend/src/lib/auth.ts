@@ -8,8 +8,9 @@
 import NextAuth, { type DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-// The base URL already includes /api/v1
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998/api/v1";
+// Strip trailing /api/v1 if present (backwards compat), then always append it
+const _RAW_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998";
+const API_BASE_URL = _RAW_BASE.replace(/\/api\/v1\/?$/, "") + "/api/v1";
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
 
 function readTokenExpiry(accessToken: string): number | null {
@@ -125,15 +126,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     ],
     callbacks: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        authorized({ auth }: any) {
+        authorized({ auth, request: { nextUrl } }: any) {
+            console.log("[AUTH DEBUG] authorized callback triggered for URL:", nextUrl.pathname);
+            console.log("[AUTH DEBUG] Current auth state:", JSON.stringify(auth));
+            
             // If token refresh permanently failed, force re-login so the user
             // doesn't end up on a protected page with an expired access token.
-            if (auth?.error === "RefreshAccessTokenError") return false;
-            return !!auth;
+            if (auth?.error === "RefreshAccessTokenError") {
+                console.log("[AUTH DEBUG] Rejecting due to RefreshAccessTokenError");
+                return false;
+            }
+            const isAuthorized = !!auth;
+            console.log("[AUTH DEBUG] isAuthorized:", isAuthorized);
+            return isAuthorized;
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async jwt({ token, user }: any) {
+        async jwt({ token, user, account }: any) {
+            console.log("[AUTH DEBUG] jwt callback started");
+            console.log("[AUTH DEBUG] is user object present?", !!user);
+            
             if (user) {
+                console.log("[AUTH DEBUG] Initial login, populating token from user object");
                 token.accessToken = user.accessToken;
                 token.refreshToken = user.refreshToken;
                 token.accessTokenExpires = readTokenExpiry(user.accessToken);
@@ -145,6 +158,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
 
             if (!token.accessToken || !token.refreshToken) {
+                console.log("[AUTH DEBUG] Missing tokens, returning current token state");
                 return token;
             }
 
@@ -153,17 +167,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     ? token.accessTokenExpires
                     : readTokenExpiry(token.accessToken as string);
 
+            console.log("[AUTH DEBUG] Token expires at:", new Date(accessTokenExpires as number).toISOString());
+            console.log("[AUTH DEBUG] Current time is: ", new Date().toISOString());
+
             if (
                 accessTokenExpires &&
                 Date.now() < accessTokenExpires - ACCESS_TOKEN_REFRESH_BUFFER_MS
             ) {
+                console.log("[AUTH DEBUG] Token is still valid, no refresh needed.");
                 return token;
             }
 
+            console.log("[AUTH DEBUG] Token is expired or expiring soon, triggering refresh.");
             return refreshAccessToken(token);
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async session({ session, token }: any) {
+            console.log("[AUTH DEBUG] session callback mapping token to session object");
             session.accessToken = token.accessToken as string;
             session.refreshToken = token.refreshToken as string;
             session.error = token.error as string | undefined;

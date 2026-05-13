@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * Calendly integration hooks using TanStack Query.
@@ -28,11 +28,15 @@ export function useCalendlyIntegrations(tenantId?: string) {
             const params = new URLSearchParams();
             if (tenantId) params.set("tenant_id", tenantId);
             const qs = params.toString();
-            const res = await fetchWithAuth(
-                `/api/v1/integrations/calendly${qs ? `?${qs}` : ""}`,
-            );
-            if (!res.ok) throw new Error("Failed to fetch Calendly integrations");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/integrations/calendly${qs ? `?${qs}` : ""}`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { integrations: [], total: 0 } as CalendlyIntegrationListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { integrations: [], total: 0 } as CalendlyIntegrationListResponse;
+            }
         },
     });
 }
@@ -94,3 +98,4 @@ export function useDisconnectCalendly(tenantId?: string) {
         },
     });
 }
+

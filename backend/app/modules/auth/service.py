@@ -1,4 +1,4 @@
-"""Identity Alignment — SignalStream architectural substrate service layer."""
+"""Authentication — SignalStream architectural substrate service layer."""
 
 from __future__ import annotations
 
@@ -9,228 +9,224 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Rebranded core exception logic
-from app.core.exceptions import (
-    ConflictError as LogicCollision,
-    NotFoundError as RegistryMissing,
-    UnauthorizedError as AccessAlignmentFault,
-    ValidationError as FormatViolation
-)
-from app.core import security as spectral_crypto
-from app.modules.auth.models import IdentityManifest, IdentityManifestationCandidacy
+from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
+from app.core import security
+from app.modules.auth.models import User, UserInvitation
+from app.modules.auth.schemas import RegisterRequest
 
-class AlignmentOrchestrator:
-    """Orchestrates identity manifestation and spectral alignment validation logic."""
+
+class AuthService:
+    """Orchestrates authentication and user registration logic."""
 
     @staticmethod
-    async def finalize_identity_manifestation(
-        session_store: AsyncSession,
+    async def complete_registration(
+        db: AsyncSession,
         *,
-        candidacy_credential: str,
-        label: str,
-        credential_secret: str,
-    ) -> IdentityManifest:
-        """Processes a pending candidacy to establish a permanent identity manifest."""
-        pending_candidacy = await AlignmentOrchestrator.resolve_candidacy_credential(session_store, candidacy_credential)
+        token: str,
+        name: str,
+        password: str,
+    ) -> User:
+        """Processes a pending invitation to establish a permanent user."""
+        invitation = await AuthService.get_invitation_by_token(db, token)
 
-        # Collision detection for established identity manifests
-        presence_check = await session_store.execute(
-            select(IdentityManifest).where(IdentityManifest.spectral_identity == pending_candidacy.spectral_identity)
+        # Collision detection for established users
+        presence_check = await db.execute(
+            select(User).where(User.email == invitation.email)
         )
         if presence_check.scalar_one_or_none():
-            raise LogicCollision("Identity manifest already established for this spectral signature")
+            raise ConflictError("User already established for this email")
 
-        new_manifest = IdentityManifest(
-            spectral_identity=pending_candidacy.spectral_identity,
-            label=label,
-            privilege_tier=pending_candidacy.privilege_tier,
-            nexus_sig=pending_candidacy.nexus_sig,
-            credential_hash=spectral_crypto.hash_password(credential_secret),
-            active_mark=True,
+        new_user = User(
+            email=invitation.email,
+            name=name,
+            role=invitation.role,
+            tenant_id=invitation.tenant_id,
+            credential_hash=security.hash_password(password),
+            is_active=True,
         )
-        session_store.add(new_manifest)
+        db.add(new_user)
 
-        pending_candidacy.manifestation_timestamp = datetime.now(UTC)
-        pending_candidacy.active_mark = False
+        invitation.manifested_at = datetime.now(UTC)
+        invitation.is_active = False
 
-        await session_store.flush()
-        await session_store.refresh(new_manifest)
-        return new_manifest
+        await db.flush()
+        await db.refresh(new_user)
+        return new_user
 
     @staticmethod
-    async def rotate_spectral_signatures(
-        session_store: AsyncSession,
-        refresh_signal: str,
+    async def refresh_tokens(
+        db: AsyncSession,
+        refresh_token: str,
     ) -> str:
-        """Validates a refresh signal and generates a fresh short-term access signature."""
+        """Validates a refresh token and generates a fresh short-term access token."""
         from jose import JWTError
 
         try:
-            extracted_vectors = spectral_crypto.decode_token(refresh_signal)
+            payload = security.decode_token(refresh_token)
         except JWTError:
-            raise AccessAlignmentFault("Spectral signature rotation cycle failed")
+            raise UnauthorizedError("Token refresh failed")
 
-        if extracted_vectors.get("type") != "refresh":
-            raise AccessAlignmentFault("Incompatible signal type for spectral rotation")
+        if payload.get("type") != "refresh":
+            raise UnauthorizedError("Incompatible token type for refresh")
 
-        identity_sig = extracted_vectors.get("sub")
-        if not identity_sig:
-            raise AccessAlignmentFault("Identity signature missing from spectral vector")
+        user_id = payload.get("sub")
+        if not user_id:
+            raise UnauthorizedError("User ID missing from token")
 
-        query_result = await session_store.execute(
-            select(IdentityManifest).where(IdentityManifest.id == UUID(identity_sig))
+        query_result = await db.execute(
+            select(User).where(User.id == UUID(user_id))
         )
-        target_manifest = query_result.scalar_one_or_none()
+        user = query_result.scalar_one_or_none()
 
-        # Validation of identity manifest state
-        if not target_manifest or not getattr(target_manifest, "active_mark", False):
-            raise AccessAlignmentFault("Identity state invalid for spectral rotation")
+        # Validation of user state
+        if not user or not user.is_active:
+            raise UnauthorizedError("User state invalid for token refresh")
 
         attributes = {
-            "sub": str(target_manifest.id),
-            "email": target_manifest.spectral_identity,
-            "role": target_manifest.privilege_tier,
-            "tenant_id": str(target_manifest.nexus_sig) if target_manifest.nexus_sig else None,
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
         }
-        return spectral_crypto.create_access_token(attributes)
+        return security.create_access_token(attributes)
 
     @staticmethod
-    async def authenticate_spectral_alignment(
-        session_store: AsyncSession,
-        spectral_identity: str,
-        credential_secret: str,
-    ) -> IdentityManifest:
-        """Authenticates spectral alignment and updates the last alignment synchronization."""
-        search_op = await session_store.execute(
-            select(IdentityManifest).where(IdentityManifest.spectral_identity == spectral_identity)
+    async def authenticate(
+        db: AsyncSession,
+        email: str,
+        password: str,
+    ) -> User:
+        """Authenticates user and updates the last login timestamp."""
+        search_op = await db.execute(
+            select(User).where(User.email == email)
         )
-        manifest_instance = search_op.scalar_one_or_none()
+        user = search_op.scalar_one_or_none()
 
-        # Holistic alignment validation block
-        alignment_fault = any([
-            manifest_instance is None,
-            not getattr(manifest_instance, "active_mark", False),
-            manifest_instance.credential_hash is None if manifest_instance else True,
-            not spectral_crypto.verify_password(credential_secret, manifest_instance.credential_hash) if manifest_instance else True
+        # Holistic validation block
+        auth_fault = any([
+            user is None,
+            not user.is_active if user else True,
+            user.credential_hash is None if user else True,
+            not security.verify_password(password, user.credential_hash) if user else True
         ])
 
-        if alignment_fault:
-            raise AccessAlignmentFault("Spectral alignment authentication unsuccessful")
+        if auth_fault:
+            raise UnauthorizedError("Authentication unsuccessful")
 
-        manifest_instance.last_alignment_at = datetime.now(UTC)
-        await session_store.flush()
+        user.last_login_at = datetime.now(UTC)
+        await db.flush()
 
-        return manifest_instance
+        return user
 
     @staticmethod
-    def derive_spectral_signatures(target_manifest: IdentityManifest) -> tuple[str, str]:
-        """Derives primary and secondary spectral signatures for a manifested identity."""
-        meta_vectors = {
-            "sub": str(target_manifest.id),
-            "email": target_manifest.spectral_identity,
-            "role": target_manifest.privilege_tier,
-            "tenant_id": str(target_manifest.nexus_sig) if target_manifest.nexus_sig else None,
+    def create_tokens(user: User) -> tuple[str, str]:
+        """Creates access and refresh tokens for a user."""
+        payload = {
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
         }
         return (
-            spectral_crypto.create_access_token(meta_vectors),
-            spectral_crypto.create_refresh_token(meta_vectors)
+            security.create_access_token(payload),
+            security.create_refresh_token(payload)
         )
 
     @staticmethod
-    async def initiate_candidacy_manifestation(
-        session_store: AsyncSession,
+    async def create_invitation(
+        db: AsyncSession,
         *,
-        spectral_identity: str,
-        label: str | None,
-        privilege_tier: str,
-        nexus_sig: UUID | None,
-        originator_sig: UUID | None,
-    ) -> tuple[IdentityManifestationCandidacy, str]:
-        """Initializes a transient candidacy manifest and triggers spectral notification."""
+        email: str,
+        name: str | None,
+        role: str,
+        tenant_id: UUID | None,
+        originator_id: UUID | None,
+    ) -> tuple[UserInvitation, str]:
+        """Initializes a transient invitation and triggers email notification."""
         from app.core.config import get_settings
         from app.core.email import send_invite_email
 
-        # Conflict verification across established manifests
-        existing_check = await session_store.execute(
-            select(IdentityManifest).where(IdentityManifest.spectral_identity == spectral_identity)
+        # Conflict verification across established users
+        existing_check = await db.execute(
+            select(User).where(User.email == email)
         )
         if existing_check.scalar_one_or_none():
-            raise LogicCollision(f"Spectral identity '{spectral_identity}' already manifested")
+            raise ConflictError(f"User with email '{email}' already exists")
 
-        active_candidacies = await session_store.execute(
-            select(IdentityManifestationCandidacy).where(
-                IdentityManifestationCandidacy.spectral_identity == spectral_identity,
-                IdentityManifestationCandidacy.manifestation_timestamp.is_(None),
-                IdentityManifestationCandidacy.active_mark.is_(True),
-                IdentityManifestationCandidacy.terminal_timestamp > datetime.now(UTC),
+        active_invitations = await db.execute(
+            select(UserInvitation).where(
+                UserInvitation.email == email,
+                UserInvitation.manifested_at.is_(None),
+                UserInvitation.is_active.is_(True),
+                UserInvitation.expires_at > datetime.now(UTC),
             )
         )
-        if active_candidacies.scalar_one_or_none():
-            raise LogicCollision(f"Candidacy for '{spectral_identity}' already in progress")
+        if active_invitations.scalar_one_or_none():
+            raise ConflictError(f"Invitation for '{email}' already in progress")
 
-        candidacy_credential = secrets.token_urlsafe(48)[:64]
-        threshold = datetime.now(UTC) + timedelta(hours=72)
+        token = secrets.token_urlsafe(48)[:64]
+        expires_at = datetime.now(UTC) + timedelta(hours=72)
 
-        candidacy = IdentityManifestationCandidacy(
-            spectral_identity=spectral_identity,
-            label=label,
-            privilege_tier=privilege_tier,
-            nexus_sig=nexus_sig,
-            candidacy_credential=candidacy_credential,
-            originator_sig=originator_sig,
-            terminal_timestamp=threshold,
-            active_mark=True,
+        invitation = UserInvitation(
+            email=email,
+            name=name,
+            role=role,
+            tenant_id=tenant_id,
+            token=token,
+            originator_id=originator_id,
+            expires_at=expires_at,
+            is_active=True,
         )
-        session_store.add(candidacy)
-        await session_store.flush()
-        await session_store.refresh(candidacy)
+        db.add(invitation)
+        await db.flush()
+        await db.refresh(invitation)
 
         cfg = get_settings()
-        resource_path = f"{cfg.FRONTEND_URL}/invite/{candidacy_credential}"
+        invite_link = f"{cfg.FRONTEND_URL}/invite/{token}"
         
         await send_invite_email(
-            to_email=spectral_identity,
-            to_name=label,
-            invite_link=resource_path,
-            role=privilege_tier,
+            to_email=email,
+            to_name=name,
+            invite_link=invite_link,
+            role=role,
         )
 
-        return candidacy, resource_path
+        return invitation, invite_link
 
     @staticmethod
-    async def resolve_candidacy_credential(session_store: AsyncSession, candidacy_credential: str) -> IdentityManifestationCandidacy:
-        """Resolves and validates a transient candidacy manifest."""
-        fetch_op = await session_store.execute(
-            select(IdentityManifestationCandidacy).where(IdentityManifestationCandidacy.candidacy_credential == candidacy_credential)
+    async def get_invitation_by_token(db: AsyncSession, token: str) -> UserInvitation:
+        """Resolves and validates a transient invitation."""
+        fetch_op = await db.execute(
+            select(UserInvitation).where(UserInvitation.token == token)
         )
-        candidacy = fetch_op.scalar_one_or_none()
+        invitation = fetch_op.scalar_one_or_none()
         
-        if candidacy is None:
-            raise RegistryMissing("IdentityManifestationCandidacy", candidacy_credential)
+        if invitation is None:
+            raise NotFoundError("Invitation", token)
         
-        # Validation of candidacy state
+        # Validation of invitation state
         state_faults = {
-            "deactivated": not candidacy.active_mark,
-            "manifested": candidacy.manifestation_timestamp is not None,
-            "terminal": candidacy.terminal_timestamp < datetime.now(UTC)
+            "deactivated": not invitation.is_active,
+            "manifested": invitation.manifested_at is not None,
+            "expired": invitation.expires_at < datetime.now(UTC)
         }
         
         if any(state_faults.values()):
             fault = next(k for k, v in state_faults.items() if v)
-            raise FormatViolation(f"Candidacy cycle state: {fault}")
+            raise ValidationError(f"Invitation state invalid: {fault}")
             
-        return candidacy
+        return invitation
 
     @staticmethod
-    async def resolve_identity_by_sig(
-        session_store: AsyncSession,
-        identity_sig: UUID,
-    ) -> IdentityManifest:
-        """Locates an established identity manifest using its unique signature."""
-        lookup_op = await session_store.execute(
-            select(IdentityManifest).where(IdentityManifest.id == identity_sig)
+    async def get_user_by_id(
+        db: AsyncSession,
+        user_id: UUID,
+    ) -> User:
+        """Locates an established user using its unique ID."""
+        lookup_op = await db.execute(
+            select(User).where(User.id == user_id)
         )
-        manifest_instance = lookup_op.scalar_one_or_none()
-        if manifest_instance is None:
-            raise RegistryMissing("IdentityManifest", str(identity_sig))
-        return manifest_instance
+        user = lookup_op.scalar_one_or_none()
+        if user is None:
+            raise NotFoundError("User", str(user_id))
+        return user

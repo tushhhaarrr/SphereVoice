@@ -1,4 +1,4 @@
-"""Architectural Cognitive Library — Structural Shard Schemas.
+"""Architectural Knowledge Base — Structural Shard Schemas.
 
 Request/response models for library manifestation, artifact ingestion, 
 vector probing, and structural node activation.
@@ -87,7 +87,7 @@ class ArtifactListResponse(BaseModel):
     total: int
 
 
-# ── Cognitive Library Substrates ───────────────────────────
+# ── Knowledge Base Substrates ───────────────────────────
 
 
 class LibraryManifest(BaseModel):

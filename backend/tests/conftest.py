@@ -31,7 +31,7 @@ settings = get_settings()
 # Use a separate test database
 TEST_DATABASE_URL = settings.DATABASE_URL.replace("/SphereVoice_dev", "/SphereVoice_test")
 
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+test_engine = create_async_engine(TEST_DATABASE_URL, echo=True)
 test_session_factory = async_sessionmaker(
     bind=test_engine, class_=AsyncSession, expire_on_commit=False
 )
@@ -117,7 +117,7 @@ async def admin_user(db_session: AsyncSession) -> User:
         name="Admin User",
         role="admin",
         tenant_id=None,
-        password_hash=TEST_PASSWORD_HASH,
+        credential_hash=TEST_PASSWORD_HASH,
         is_active=True,
     )
     user = await db_session.merge(user)
@@ -134,7 +134,7 @@ async def developer_user(db_session: AsyncSession) -> User:
         name="Developer User",
         role="developer",
         tenant_id=None,
-        password_hash=TEST_PASSWORD_HASH,
+        credential_hash=TEST_PASSWORD_HASH,
         is_active=True,
     )
     user = await db_session.merge(user)
@@ -151,7 +151,7 @@ async def read_only_user(db_session: AsyncSession) -> User:
         name="Viewer User",
         role="read_only",
         tenant_id=None,
-        password_hash=TEST_PASSWORD_HASH,
+        credential_hash=TEST_PASSWORD_HASH,
         is_active=True,
     )
     user = await db_session.merge(user)
@@ -168,7 +168,7 @@ async def client_user(db_session: AsyncSession, test_tenant: Tenant) -> User:
         name="Client User",
         role="client_user",
         tenant_id=TENANT_1_ID,
-        password_hash=TEST_PASSWORD_HASH,
+        credential_hash=TEST_PASSWORD_HASH,
         is_active=True,
     )
     user = await db_session.merge(user)
@@ -187,7 +187,7 @@ async def client_user_2(
         name="Client User 2",
         role="client_user",
         tenant_id=TENANT_2_ID,
-        password_hash=TEST_PASSWORD_HASH,
+        credential_hash=TEST_PASSWORD_HASH,
         is_active=True,
     )
     user = await db_session.merge(user)

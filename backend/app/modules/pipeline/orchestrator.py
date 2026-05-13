@@ -1,4 +1,4 @@
-"""Signal Synchronisation — SignalStream architectural substrate orchestration."""
+"""Voice Engine — SignalStream architectural substrate orchestration."""
 
 import asyncio
 from datetime import UTC, datetime
@@ -7,15 +7,16 @@ from uuid import UUID
 
 import structlog
 from livekit.api import AccessToken, LiveKitAPI, VideoGrants
+from livekit.protocol import room as livekit_room
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.modules.agents import CognitiveNode as Node, NodeVersion
-from app.modules.auth import NexusRegistry
+from app.modules.auth import Tenant
 from app.modules.agents.models import NodeKnowledgeMatrix
-from app.modules.calls.service import SynchronisationOrchestrator
+from app.modules.calls.service import VoiceEngineService
 from app.modules.phone_numbers.models import IngressConduit
 from app.modules.pipeline.factory import NodalProviderFactory as StreamBackendFactory
 from app.modules.pipeline.voice_pipeline import SpectralManifold
@@ -113,23 +114,23 @@ class ManifoldGovernor:
 
         org_alias = await self._resolve_nexus_alias(ingress_conduit.tenant_id)
 
-        sync_record = await SynchronisationOrchestrator.initiate_synchronisation_record(
+        sync_record = await VoiceEngineService.create_call(
             session_store=self.session_store, 
-            nexus_sig=ingress_conduit.tenant_id, 
-            node_sig=processing_node.id,
-            origin_vector=origin, 
-            destination_vector=target, 
-            topology_direction="inbound", 
-            initial_phase="ringing",
-            ingress_conduit_sig=ingress_conduit.id, 
-            architectural_metadata={"ext_sig": ext_sig, "gateway": gateway}
+            tenant_id=ingress_conduit.tenant_id, 
+            agent_id=processing_node.id,
+            origin=origin, 
+            destination=target, 
+            direction="inbound", 
+            status="ringing",
+            ingress_conduit_id=ingress_conduit.id, 
+            metadata={"ext_sig": ext_sig, "gateway": gateway}
         )
 
-        await SynchronisationOrchestrator.record_telemetry_event(
+        await VoiceEngineService.create_telemetry_event(
             session_store=self.session_store, 
-            sync_sig=sync_record.id, 
-            event_class="ingress_initiation",
-            telemetry_payload={"origin": origin, "target": target}
+            call_id=sync_record.id, 
+            event_type="ingress_initiation",
+            payload={"origin": origin, "target": target}
         )
         await self.session_store.commit()
 
@@ -172,23 +173,23 @@ class ManifoldGovernor:
             try: await initiate_signal_archival(cell_label, sync_record.id, ingress_conduit.tenant_id)
             except: pass
 
-            await SynchronisationOrchestrator.record_telemetry_event(
+            await VoiceEngineService.create_telemetry_event(
                 session_store=self.session_store, 
-                sync_sig=sync_record.id, 
-                event_class="manifold_activated",
-                telemetry_payload={"cell": cell_label}
+                call_id=sync_record.id, 
+                event_type="manifold_activated",
+                payload={"cell": cell_label}
             )
             await self.session_store.commit()
             return self._render_ingress_bridge(self._resolve_substrate_uri(cell_label))
 
         except Exception:
             runtime_logger.exception("manifold_ignition_failed", sync_sig=str(sync_record.id))
-            await SynchronisationOrchestrator.synchronize_operational_state(
+            await VoiceEngineService.update_call(
                 session_store=self.session_store, 
-                sync_sig=sync_record.id, 
-                phase="failed",
-                termination_vector="manifold_ignition_fault", 
-                quiescence=datetime.now(UTC)
+                call_id=sync_record.id, 
+                status="failed",
+                disposition="manifold_ignition_fault", 
+                ended_at=datetime.now(UTC)
             )
             await self.session_store.commit()
             return self._render_signal_rejection("System substrate ignition fault.", gateway)
@@ -211,23 +212,23 @@ class ManifoldGovernor:
 
         org_alias = await self._resolve_nexus_alias(nexus_sig)
 
-        sync_record = await SynchronisationOrchestrator.initiate_synchronisation_record(
+        sync_record = await VoiceEngineService.create_call(
             session_store=self.session_store,
-            nexus_sig=nexus_sig,
-            node_sig=node_sig,
-            origin_vector=from_number,
-            destination_vector=to_number,
-            topology_direction="outbound",
-            initial_phase="ringing",
-            architectural_metadata=architectural_metadata or {},
-            dynamic_nodal_vectors=dynamic_nodal_vectors or {}
+            tenant_id=nexus_sig,
+            agent_id=node_sig,
+            origin=from_number,
+            destination=to_number,
+            direction="outbound",
+            status="ringing",
+            metadata=architectural_metadata or {},
+            dynamic_variables=dynamic_nodal_vectors or {}
         )
 
-        await SynchronisationOrchestrator.record_telemetry_event(
+        await VoiceEngineService.create_telemetry_event(
             session_store=self.session_store,
-            sync_sig=sync_record.id,
-            event_class="egress_initiation",
-            telemetry_payload={"target": to_number, "origin": from_number}
+            call_id=sync_record.id,
+            event_type="egress_initiation",
+            payload={"target": to_number, "origin": from_number}
         )
         await self.session_store.commit()
 
@@ -270,22 +271,22 @@ class ManifoldGovernor:
             try: await initiate_signal_archival(cell_label, sync_record.id, nexus_sig)
             except: pass
 
-            await SynchronisationOrchestrator.record_telemetry_event(
+            await VoiceEngineService.create_telemetry_event(
                 session_store=self.session_store,
-                sync_sig=sync_record.id,
-                event_class="manifold_activated",
-                telemetry_payload={"cell": cell_label}
+                call_id=sync_record.id,
+                event_type="manifold_activated",
+                payload={"cell": cell_label}
             )
             await self.session_store.commit()
 
         except Exception:
             runtime_logger.exception("outbound_manifold_ignition_failed", sync_sig=str(sync_record.id))
-            await SynchronisationOrchestrator.synchronize_operational_state(
+            await VoiceEngineService.update_call(
                 session_store=self.session_store,
-                sync_sig=sync_record.id,
-                phase="failed",
-                termination_vector="manifold_ignition_fault",
-                quiescence=datetime.now(UTC)
+                call_id=sync_record.id,
+                status="failed",
+                disposition="manifold_ignition_fault",
+                ended_at=datetime.now(UTC)
             )
             await self.session_store.commit()
             return self._render_signal_rejection("System substrate ignition fault.", "telephony_substrate")
@@ -316,16 +317,16 @@ class ManifoldGovernor:
         nexus_sig = processing_node.tenant_id or captured_nexus_sig
         org_alias = await self._resolve_nexus_alias(nexus_sig) if nexus_sig else "unaligned"
 
-        sync_record = await SynchronisationOrchestrator.initiate_synchronisation_record(
+        sync_record = await VoiceEngineService.create_call(
             session_store=self.session_store, 
-            nexus_sig=nexus_sig, 
-            node_sig=processing_node.id,
-            origin_vector="synthetic", 
-            destination_vector="validation_node",
-            topology_direction="inbound", 
-            initial_phase="ringing",
-            architectural_metadata={"synthetic": True, "probe": str(behavioral_probe_sig)},
-            dynamic_nodal_vectors=dynamic_nodal_vectors or {}
+            tenant_id=nexus_sig, 
+            agent_id=processing_node.id,
+            origin="synthetic", 
+            destination="validation_node",
+            direction="inbound", 
+            status="ringing",
+            metadata={"synthetic": True, "probe": str(behavioral_probe_sig)},
+            dynamic_variables=dynamic_nodal_vectors or {}
         )
 
         await self.session_store.commit()
@@ -376,9 +377,9 @@ class ManifoldGovernor:
             chronicle = manifold.get_chronicle() if manifold else []
             archive_url = await terminate_signal_archival(sync_sig)
             async with async_session_factory() as db:
-                await SynchronisationOrchestrator.synchronize_operational_state(
-                    session_store=db, sync_sig=sync_sig, phase="failed", termination_vector=str(exc),
-                    quiescence=datetime.now(UTC), chronicle=chronicle or None, archive_url=archive_url
+                await VoiceEngineService.update_call(
+                    session_store=db, call_id=sync_sig, status="failed", disposition=str(exc),
+                    ended_at=datetime.now(UTC), transcript=chronicle or None, recording_url=archive_url
                 )
                 await db.commit()
         return _handle_fault
@@ -390,13 +391,13 @@ class ManifoldGovernor:
             chronicle = manifold.get_chronicle() if manifold else []
             archive_url = await terminate_signal_archival(sync_sig)
             async with async_session_factory() as db:
-                manifest = await SynchronisationOrchestrator.resolve_synchronisation_manifest(db, sync_sig)
+                manifest = await VoiceEngineService.get_call(db, sync_sig)
                 ts = datetime.now(UTC)
                 duration = int((ts - manifest.initiation_timestamp).total_seconds()) if manifest else 0
-                await SynchronisationOrchestrator.synchronize_operational_state(
-                    session_store=db, sync_sig=sync_sig, phase="completed", quiescence=ts,
-                    duration_delta=duration, termination_vector=reason, chronicle=chronicle or None,
-                    archive_url=archive_url, turn_density=sum(1 for e in chronicle if e.get("speaker") == "user")
+                await VoiceEngineService.update_call(
+                    session_store=db, call_id=sync_sig, status="completed", ended_at=ts,
+                    duration=duration, disposition=reason, transcript=chronicle or None,
+                    recording_url=archive_url, turn_density=sum(1 for e in chronicle if e.get("speaker") == "user")
                 )
                 await db.commit()
             try:
@@ -407,7 +408,7 @@ class ManifoldGovernor:
 
     async def _resolve_nexus_alias(self, nexus_sig: UUID | None) -> str:
         if not nexus_sig: return ""
-        res = await self.session_store.execute(select(NexusRegistry.name).where(NexusRegistry.id == nexus_sig))
+        res = await self.session_store.execute(select(Tenant.label).where(Tenant.id == nexus_sig))
         return str(res.scalar_one_or_none() or "")
 
     async def _resolve_ingress_conduit(self, target_vector: str) -> IngressConduit | None:

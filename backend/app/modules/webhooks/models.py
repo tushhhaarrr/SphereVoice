@@ -70,7 +70,7 @@ class TelemetryVectorTransmission(UUIDPrimaryKeyMixin, Base):
     sync_sig: Mapped[uuid.UUID | None] = mapped_column(
         "call_id",
         UUID(as_uuid=True),
-        ForeignKey("signal_synchronisations.id", ondelete="CASCADE"),
+        ForeignKey("voice_engines.id", ondelete="CASCADE"),
         nullable=True,
     )
 

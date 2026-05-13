@@ -60,7 +60,7 @@ class ConduitRegistrySnapshot(BaseModel):
 # ── public ingress Resolution ──────────────────────────────────
 
 
-class EgressConduitResolution(BaseModel):
+class Integrations(BaseModel):
     """Resolved parameters for an egress conduit sequence."""
 
     node_sig: str = Field(..., alias="agent_id")

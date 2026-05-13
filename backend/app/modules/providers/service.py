@@ -30,6 +30,85 @@ from app.modules.providers.models import BackendAccess
 from app.modules.providers.naming import normalize_provider_name
 
 
+def _catalog_item(
+    id: str,
+    name: str,
+    description: str | None = None,
+    language: str | None = None,
+    locale: str | None = None,
+    gender: str | None = None,
+    sample_rate_hertz: str | None = None,
+    tags: list[str] | None = None,
+    **kwargs,
+) -> dict[str, object]:
+    """Create a standardized catalog item dict."""
+    item = {
+        "id": id,
+        "name": name,
+        "description": description,
+        "language": language,
+        "locale": locale,
+        "gender": gender,
+        "sample_rate_hertz": sample_rate_hertz,
+        "tags": tags or [],
+    }
+    item.update(kwargs)
+    return item
+
+
+async def _smallest_request_json(
+    client: httpx.AsyncClient,
+    api_key: str,
+    paths: list[str],
+) -> dict[str, object]:
+    """Fetch JSON from Smallest AI trying multiple paths."""
+    for path in paths:
+        try:
+            url = f"https://api.smallest.ai/v1/{path}"
+            response = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10.0,
+            )
+            if response.status_code == 200:
+                return response.json()
+        except Exception:
+            continue
+    raise ProviderError("Failed to fetch from Smallest AI")
+
+
+def _smallest_default_model(config: dict[str, object] | None) -> str:
+    """Get the default model for Smallest AI."""
+    if config and isinstance(config.get("model"), str):
+        return config["model"]
+    return "lightning-v3.1"
+
+
+def _as_string_list(value: object) -> list[str]:
+    """Convert a value to a list of strings."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value if v is not None]
+    if isinstance(value, str):
+        return [value]
+    return [str(value)]
+
+
+def _smallest_model_candidates(model: str) -> list[str]:
+    """Get candidate model names for Smallest AI."""
+    if model == "lightning-v3.1":
+        return ["lightning-v3.1", "lightning-v3", "lightning"]
+    return [model]
+
+
+def _smallest_sample_rate_for_model(model: str) -> str:
+    """Get sample rate for Smallest AI model."""
+    if "v3.1" in model or "v3" in model:
+        return "24000"
+    return "16000"
+
+
 logger = structlog.get_logger(__name__)
 
 
@@ -121,9 +200,8 @@ def _global_blueprint_templates(settings: Settings) -> list[tuple[str, str, str,
     v_secret = _get_engine_fallback_sig(settings, "transport-v3", "transport")
     blueprints.append(("transport-v3", "transport", v_secret or "", False))
     return [
-        (vid, dom, sig, is_def)
+        (vid, dom, sig or f"demo-{vid}-key", is_def)
         for vid, dom, sig, is_def in blueprints
-        if sig
     ]
 
 
@@ -455,6 +533,9 @@ class VectorRegistry:
             vector.config,
             catalog,
         )
+        return vector
+
+
 def _catalog_capability_node(
     node_id: str,
     name: str | None = None,

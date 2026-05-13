@@ -15,14 +15,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_factory
-from app.modules.calls.models import SignalSynchronisation as Synchronisation
-from app.modules.calls.service import SynchronisationOrchestrator
+from app.modules.calls.models import VoiceEngine
+from app.modules.calls.service import VoiceEngineService
 from app.modules.pipeline.orchestrator import ManifoldGovernor
 
 logger = structlog.get_logger(__name__)
 
-# Terminal synchronisation phases
-_TERMINAL_PHASES: frozenset[str] = frozenset(
+# Terminal call statuses
+_TERMINAL_STATUSES: frozenset[str] = frozenset(
     {
         "completed",
         "failed",
@@ -37,28 +37,28 @@ _POLL_INTERVAL_S: float = 2.0
 _MAX_POLL_DURATION_S: int = 420  # Increased buffer for complex manifolds
 
 
-class SynchronisationBridgeOrchestrator:
-    """Architectural bridge for outbound signal synchronisations.
+class CallBridgeOrchestrator:
+    """Architectural bridge for outbound calls.
 
     Wraps the ManifoldGovernor to provide a blocking interface 
-    required by propagation cycle workers.
+    required by campaign workers.
     """
 
     @staticmethod
-    async def initiate_outbound_synchronisation(
+    async def initiate_outbound_call(
         db: AsyncSession,
-        node_sig: UUID,
-        nexus_sig: UUID,
-        target_vector: str,
-        origin_vector: str,
-        dynamic_nodal_vectors: dict[str, Any] | None = None,
-        architectural_metadata: dict[str, Any] | None = None,
+        agent_id: UUID,
+        tenant_id: UUID,
+        to_number: str,
+        from_number: str,
+        dynamic_variables: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Initiate an outbound synchronisation and await final state manifestation."""
+        """Initiate an outbound call and await final state."""
         log = logger.bind(
-            node_sig=str(node_sig),
-            nexus_sig=str(nexus_sig),
-            target=target_vector,
+            agent_id=str(agent_id),
+            tenant_id=str(tenant_id),
+            to_number=to_number,
         )
 
         # ── 1. Delegate to the substrate governor ──────────────────────
@@ -66,81 +66,81 @@ class SynchronisationBridgeOrchestrator:
 
         try:
             init_result = await governor.initiate_outbound_synchronisation(
-                node_sig=node_sig,
-                to_number=target_vector,
-                from_number=origin_vector,
-                nexus_sig=nexus_sig,
-                dynamic_nodal_vectors=dynamic_nodal_vectors,
-                architectural_metadata=architectural_metadata,
+                node_sig=agent_id,
+                to_number=to_number,
+                from_number=from_number,
+                nexus_sig=tenant_id,
+                dynamic_nodal_vectors=dynamic_variables,
+                architectural_metadata=metadata,
             )
         except Exception:
-            log.exception("synchronisation_initiation_fault")
+            log.exception("call_initiation_fault")
             return {
-                "sync_sig": None,
-                "state": "failed",
-                "lexical_chronicle": [],
-                "duration_s": 0,
-                "termination_vector": "substrate_initialization_fault",
+                "call_id": None,
+                "status": "failed",
+                "transcript": [],
+                "duration": 0,
+                "disposition": "substrate_initialization_fault",
             }
 
-        sync_sig_str = str(init_result["sync_sig"])
-        sync_uuid = UUID(sync_sig_str)
-        log = log.bind(sync_sig=sync_sig_str)
-        log.info("synchronisation_cycle_ignited")
+        call_id_str = str(init_result["sync_sig"])
+        call_uuid = UUID(call_id_str)
+        log = log.bind(call_id=call_id_str)
+        log.info("call_cycle_ignited")
 
         # ── 2. Poll substrate for terminal state manifestation ──────────
-        final_sync = await _poll_synchronisation_terminal_state(
-            sync_sig=sync_uuid,
+        final_call = await _poll_call_terminal_state(
+            call_id=call_uuid,
             max_duration=_MAX_POLL_DURATION_S,
             interval=_POLL_INTERVAL_S,
             log=log,
         )
 
-        if final_sync is None:
-            log.warning("synchronisation_poll_timeout")
+        if final_call is None:
+            log.warning("call_poll_timeout")
             try:
-                await SynchronisationOrchestrator.synchronize_operational_state(
+                await VoiceEngineService.update_call(
                     session_store=db,
-                    sync_sig=sync_uuid,
-                    phase="failed",
-                    termination_vector="bridge_poll_timeout",
+                    call_id=call_uuid,
+                    status="failed",
+                    disposition="bridge_poll_timeout",
                 )
                 await db.commit()
             except Exception:
-                log.exception("synchronisation_timeout_update_failed")
+                log.exception("call_timeout_update_failed")
 
             return {
-                "sync_sig": sync_sig_str,
-                "state": "failed",
-                "lexical_chronicle": [],
-                "duration_s": 0,
-                "termination_vector": "bridge_poll_timeout",
+                "call_id": call_id_str,
+                "status": "failed",
+                "transcript": [],
+                "duration": 0,
+                "disposition": "bridge_poll_timeout",
             }
 
-        # ── 3. Return structural result for propagation nexus ───────────
+        # ── 3. Return structural result for campaign worker ───────────
         log.info(
-            "synchronisation_cycle_quiesced",
-            phase=final_sync.phase,
-            duration=final_sync.duration_s,
+            "call_cycle_quiesced",
+            status=final_call.status,
+            duration=final_call.duration,
         )
 
         return {
-            "sync_sig": sync_sig_str,
-            "state": final_sync.phase,
-            "lexical_chronicle": final_sync.lexical_chronicle or [],
-            "extracted_data": final_sync.extracted_data or {},
-            "duration_s": final_sync.duration_s or 0,
-            "termination_vector": final_sync.termination_vector,
+            "call_id": call_id_str,
+            "status": final_call.status,
+            "transcript": final_call.transcript or [],
+            "extracted_data": final_call.summary or {},
+            "duration": final_call.duration or 0,
+            "disposition": final_call.disposition,
         }
 
 
-async def _poll_synchronisation_terminal_state(
-    sync_sig: UUID,
+async def _poll_call_terminal_state(
+    call_id: UUID,
     max_duration: int,
     interval: float,
     log: Any,
-) -> Synchronisation | None:
-    """Poll the synchronisation registry until terminal state is achieved."""
+) -> VoiceEngine | None:
+    """Poll the call registry until terminal state is achieved."""
     elapsed: float = 0.0
 
     while elapsed < max_duration:
@@ -150,19 +150,19 @@ async def _poll_synchronisation_terminal_state(
         try:
             async with async_session_factory() as poll_db:
                 result = await poll_db.execute(
-                    select(Synchronisation).where(Synchronisation.id == sync_sig)
+                    select(VoiceEngine).where(VoiceEngine.id == call_id)
                 )
-                sync = result.scalar_one_or_none()
+                call = result.scalar_one_or_none()
 
-                if sync is None:
-                    log.error("synchronisation_record_missing")
+                if call is None:
+                    log.error("call_record_missing")
                     return None
 
-                if sync.phase in _TERMINAL_PHASES:
-                    return sync
+                if call.status in _TERMINAL_STATUSES:
+                    return call
 
         except Exception:
-            log.exception("synchronisation_poll_fault", elapsed=elapsed)
+            log.exception("call_poll_fault", elapsed=elapsed)
             continue
 
     return None

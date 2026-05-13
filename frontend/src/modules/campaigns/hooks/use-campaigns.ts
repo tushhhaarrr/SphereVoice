@@ -73,11 +73,15 @@ export function useCampaigns(params?: CampaignListParams) {
   return useQuery<CampaignsListWrapper>({
     queryKey: campaignKeys.list(params),
     queryFn: async () => {
-      const res = await fetchWithAuth(
-        `/api/v1/campaigns${qs ? `?${qs}` : ""}`
-      );
-      if (!res.ok) throw new Error("Failed to fetch campaigns");
-      return res.json();
+      try {
+        const res = await fetchWithAuth(`/api/v1/campaigns${qs ? `?${qs}` : ""}`);
+        if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+        if (!res.ok) return { campaigns: [], total: 0 } as CampaignsListWrapper;
+        return res.json();
+      } catch (err) {
+        if ((err as Error).message === "Unauthorized") throw err;
+        return { campaigns: [], total: 0 } as CampaignsListWrapper;
+      }
     },
   });
 }
@@ -429,11 +433,15 @@ export function useCrmModuleFields(module: string, tenantId?: string) {
     queryKey: ["crm-module-fields", module, tenantId],
     queryFn: async () => {
       const qs = tenantId ? `?tenant_id=${tenantId}` : "";
-      const res = await fetchWithAuth(
-        `/api/v1/integrations/crm/modules/${module}/fields${qs}`
-      );
-      if (!res.ok) throw new Error("Failed to fetch CRM module fields");
-      return res.json();
+      try {
+        const res = await fetchWithAuth(`/api/v1/integrations/crm/modules/${module}/fields${qs}`);
+        if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+        if (!res.ok) return { module, fields: [] } as CrmModuleFieldsResponse;
+        return res.json();
+      } catch (err) {
+        if ((err as Error).message === "Unauthorized") throw err;
+        return { module, fields: [] } as CrmModuleFieldsResponse;
+      }
     },
     enabled: !!module,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
@@ -481,11 +489,15 @@ export function useCrmModuleViews(module: string, tenantId?: string) {
     queryKey: ["crm-module-views", module, tenantId],
     queryFn: async () => {
       const qs = tenantId ? `?tenant_id=${tenantId}` : "";
-      const res = await fetchWithAuth(
-        `/api/v1/integrations/crm/modules/${module}/views${qs}`
-      );
-      if (!res.ok) throw new Error("Failed to fetch CRM module views");
-      return res.json();
+      try {
+        const res = await fetchWithAuth(`/api/v1/integrations/crm/modules/${module}/views${qs}`);
+        if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+        if (!res.ok) return { module, views: [] } as CrmModuleViewsResponse;
+        return res.json();
+      } catch (err) {
+        if ((err as Error).message === "Unauthorized") throw err;
+        return { module, views: [] } as CrmModuleViewsResponse;
+      }
     },
     enabled: !!module,
     staleTime: 5 * 60 * 1000,

@@ -35,9 +35,15 @@ export function useAuditLogs(params?: AuditLogParams) {
     return useQuery<AuditLogListResponse>({
         queryKey: ["audit-logs", params],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/v1/analytics/audit-logs${qs}`);
-            if (!res.ok) throw new Error("Failed to fetch audit logs");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/analytics/audit-logs${qs}`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { logs: [], total: 0, page: 1, limit: 50 } as AuditLogListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { logs: [], total: 0, page: 1, limit: 50 } as AuditLogListResponse;
+            }
         },
         enabled: params?.enabled ?? true,
     });

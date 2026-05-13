@@ -846,6 +846,12 @@ class HubSpotCrmClient(BaseCrmClient):
         # Token will naturally expire after its TTL.
         pass
 
+    catalog_entity_vectors = list_contacts
+    query_entity_vectors = search_contacts
+    provision_entity_vector = upsert_contact
+    broadcast_session_activity = log_call
+    probe_signal_identity = find_contact_by_phone
+
 
 # ── Helpers ────────────────────────────────────────────────────────────
 

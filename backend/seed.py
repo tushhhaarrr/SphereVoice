@@ -13,15 +13,15 @@ async def force_seed():
     TENANT_BETA = uuid.UUID("22222222-2222-2222-2222-222222222222")
 
     async with async_session_factory() as db:
-        # 1. Create Tenants
+        # 1. Create Nexus Registries (Tenants)
         await db.execute(text("""
-            INSERT INTO tenants (id, name, slug, status) VALUES
+            INSERT INTO nexus_registry (id, label, registry_shard, operational_phase) VALUES
             (:acme, 'Acme Corp', 'acme-corp', 'active'),
             (:beta, 'Beta Labs', 'beta-labs', 'active')
-            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+            ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label
         """), {"acme": TENANT_ACME, "beta": TENANT_BETA})
 
-        # 2. Create Users
+        # 2. Create Identity Manifests (Users)
         users = [
             (uuid.uuid4(), "admin@sphere.ai", "Global Admin", "admin", None),
             (uuid.uuid4(), "admin@acme.com", "Acme Admin", "user", TENANT_ACME),
@@ -34,9 +34,9 @@ async def force_seed():
 
         for uid, email, name, role, tid in users:
             await db.execute(text("""
-                INSERT INTO users (id, email, name, role, tenant_id, password_hash, is_active)
+                INSERT INTO identity_manifests (id, spectral_identity, label, privilege_tier, nexus_sig, credential_hash, active_mark)
                 VALUES (:id, :email, :name, :role, :tid, :pw, true)
-                ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+                ON CONFLICT (spectral_identity) DO UPDATE SET credential_hash = EXCLUDED.credential_hash
             """), {"id": uid, "email": email, "name": name, "role": role, "tid": tid, "pw": pw_hash})
         
         await db.commit()

@@ -9,10 +9,10 @@ import pytest
 
 from app.core.exceptions import ValidationError
 from app.modules.integrations.service import (
-    IntegrationService,
-    _generate_oauth_state,
-    _infer_data_center,
-    _verify_oauth_state,
+    JunctionMatrix as IntegrationService,
+    _spawn_protocol_state as _generate_oauth_state,
+    _resolve_node_region as _infer_data_center,
+    _validate_protocol_state as _verify_oauth_state,
 )
 
 
@@ -40,17 +40,17 @@ def test_state_rejects_tampered_signature() -> None:
     state = _generate_oauth_state(TENANT, USER, "com")
     # flip last char of signature
     tampered = state[:-1] + ("a" if state[-1] != "a" else "b")
-    with pytest.raises(ValidationError, match="signature"):
+    with pytest.raises(ValidationError, match="integrity violation"):
         _verify_oauth_state(tampered)
 
 
 def test_state_rejects_missing_separator() -> None:
-    with pytest.raises(ValidationError, match="missing"):
+    with pytest.raises(ValidationError, match="handshake detected"):
         _verify_oauth_state("no-dot-separator")
 
 
 def test_state_rejects_empty_string() -> None:
-    with pytest.raises(ValidationError, match="missing"):
+    with pytest.raises(ValidationError, match="handshake detected"):
         _verify_oauth_state("")
 
 

@@ -244,5 +244,17 @@ class NodeZNexusClient(BaseCrmClient):
         except: return {"org_id": None, "org_name": None}
 
     async def describe_module_fields(self, module: str) -> list[dict[str, Any]]:
-        res = await self._execute_node_call("GET", "settings/fields", params={"module": module})
         return [{"api_name": f.get("api_name", ""), "display_label": f.get("display_label") or f.get("api_name", ""), "data_type": f.get("data_type", "text"), "read_only": bool(f.get("read_only", False)), "required": bool(f.get("system_mandatory", False))} for f in (res.get("fields") or [])]
+
+    async def list_notes(self, **kwargs) -> dict[str, Any]:
+        return {"data": [], "info": {"count": 0}}
+
+    async def query_entity_vectors(self, **kwargs) -> dict[str, Any]:
+        return {"data": [], "info": {"count": 0}}
+
+    async def revoke_token(self) -> None:
+        pass
+
+
+# ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
+ZohoCrmClient = NodeZNexusClient

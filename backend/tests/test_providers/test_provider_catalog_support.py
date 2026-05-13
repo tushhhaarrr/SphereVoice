@@ -7,26 +7,26 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.modules.providers.models import ProviderKey
-from app.modules.providers.service import ProviderService
+from app.modules.providers.service import VectorRegistry
 
 
 @pytest.mark.asyncio
 async def test_refresh_provider_catalog_populates_sarvam_static_catalog(db_session) -> None:
     provider = ProviderKey(
-        provider_name="sarvam",
-        provider_category="tts",
+        vector_id="sarvam",
+        vector_category="tts",
         tenant_id=None,
-        api_key_encrypted="unused",
+        auth_sig_encrypted="unused",
         config={},
     )
     db_session.add(provider)
     await db_session.flush()
 
     with patch(
-        "app.modules.providers.service._resolve_provider_api_key",
+        "app.modules.providers.service._resolve_auth_signature",
         new=AsyncMock(return_value="sarvam-key"),
     ):
-        refreshed = await ProviderService.refresh_provider_catalog(db_session, provider.id)
+        refreshed = await VectorRegistry.sync_vector_catalog(db_session, provider.id)
 
     catalog = refreshed.config["catalog"]
     assert refreshed.config["model"] == "bulbul:v3"
@@ -39,10 +39,10 @@ async def test_refresh_provider_catalog_populates_sarvam_static_catalog(db_sessi
 @pytest.mark.asyncio
 async def test_refresh_provider_catalog_populates_smallest_voice_catalog(db_session) -> None:
     provider = ProviderKey(
-        provider_name="smallest",
-        provider_category="tts",
+        vector_id="smallest",
+        vector_category="tts",
         tenant_id=None,
-        api_key_encrypted="unused",
+        auth_sig_encrypted="unused",
         config={"model": "lightning-v3.1"},
     )
     db_session.add(provider)
@@ -50,7 +50,7 @@ async def test_refresh_provider_catalog_populates_smallest_voice_catalog(db_sess
 
     with (
         patch(
-            "app.modules.providers.service._resolve_provider_api_key",
+            "app.modules.providers.service._resolve_auth_signature",
             new=AsyncMock(return_value="smallest-key"),
         ),
         patch(
@@ -65,7 +65,7 @@ async def test_refresh_provider_catalog_populates_smallest_voice_catalog(db_sess
             ),
         ),
     ):
-        refreshed = await ProviderService.refresh_provider_catalog(db_session, provider.id)
+        refreshed = await VectorRegistry.sync_vector_catalog(db_session, provider.id)
 
     catalog = refreshed.config["catalog"]
     assert refreshed.config["model"] == "lightning-v3.1"

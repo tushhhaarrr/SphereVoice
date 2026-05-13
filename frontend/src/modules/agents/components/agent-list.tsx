@@ -24,6 +24,8 @@ import {
     Plus,
     Rocket,
     Trash2,
+    Bot,
+    Sparkles,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -250,15 +252,25 @@ export function AgentList({ tenantId, tenantName }: AgentListProps = {}) {
 
             {/* TanStack Table */}
             {(data?.agents?.length ?? 0) === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
-                    <p className="text-sm text-muted-foreground">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 py-16 text-center animate-in fade-in duration-500">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20 mb-4">
+                        <Bot className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold tracking-tight">No Agents Yet</h3>
+                    <p className="mt-1 max-w-sm text-sm text-muted-foreground">
                         {workspaceMode
-                            ? `No agents created yet for ${tenantName ?? "this workspace"}.`
-                            : "No agents created yet."}
+                            ? `You haven't created any Voice AI agents for ${tenantName ?? "this workspace"} yet.`
+                            : "Get started by building your first conversational voice agent."}
                     </p>
+                    <RoleGuard roles={["admin", "developer"]}>
+                        <Button className="mt-6 gap-2" onClick={() => setCreateDialogOpen(true)} disabled={!workspaceMode}>
+                            <Sparkles className="h-4 w-4" />
+                            Create Your First Agent
+                        </Button>
+                    </RoleGuard>
                 </div>
             ) : (
-                <div className="rounded-md border">
+                <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
                     <table className="w-full text-sm">
                         <thead>
                             {table.getHeaderGroups().map((headerGroup) => (
@@ -298,10 +310,10 @@ export function AgentList({ tenantId, tenantName }: AgentListProps = {}) {
             )}
 
             {/* Pagination info */}
-            {data && data.total > 0 && (
+            {data && (data.total ?? 0) > 0 && (
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <span>
-                        Showing {data.agents.length} of {data.total} agents
+                        Showing {data.agents?.length ?? 0} of {data.total ?? 0} agents
                     </span>
                     <span>Page {data.page}</span>
                 </div>

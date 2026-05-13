@@ -43,10 +43,16 @@ export interface Agent {
 }
 
 export interface AgentListResponse {
-  agents: Agent[];
-  total: number;
-  page: number;
-  limit: number;
+  // Backend field names
+  nodes?: Agent[];
+  total_count?: number;
+  cursor_position?: number;
+  limit_bound?: number;
+  // Fallback/alias fields used by some frontend components
+  agents?: Agent[];
+  total?: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface AgentCreateRequest {

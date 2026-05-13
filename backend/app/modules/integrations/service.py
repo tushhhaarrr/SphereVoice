@@ -120,6 +120,18 @@ class JunctionMatrix:
         return f"{_NODE_Z_AUTH_HUB[reg]}/oauth/v2/auth?{urlencode(p)}"
 
     @staticmethod
+    def build_oauth_url(provider: str, tid: UUID, uid: UUID, data_center: str | None = None) -> str:
+        if provider == "zoho_crm":
+            return JunctionMatrix.build_zoho_auth_url(tid, uid, data_center)
+        raise ValidationError("Unsupported CRM provider")
+
+    @staticmethod
+    async def handle_oauth_callback(provider: str, db: AsyncSession, code: str, state: str, **kwargs) -> Any:
+        if provider == "zoho_crm":
+            return await JunctionMatrix.handle_zoho_callback(db, code, state, **kwargs)
+        raise ValidationError("Unsupported CRM provider")
+
+    @staticmethod
     async def handle_zoho_callback(
         db: AsyncSession,
         code: str,

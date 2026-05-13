@@ -21,7 +21,7 @@ from app.core.database import Base
 class CognitiveNode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """The core definition of a cognitive entity (Agent)."""
 
-    __tablename__ = "agents"
+    __tablename__ = "processing_nodes"
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("nexus_registry.id", ondelete="CASCADE"), index=True
@@ -42,10 +42,10 @@ class CognitiveNode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class NodeVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Versioned configuration for a cognitive node's logic and personality."""
 
-    __tablename__ = "agent_versions"
+    __tablename__ = "node_state_archives"
 
     agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), index=True
+        UUID(as_uuid=True), ForeignKey("processing_nodes.id", ondelete="CASCADE"), index=True
     )
     version_label: Mapped[str] = mapped_column(String(50), nullable=False)
     prompt_manifest: Mapped[str] = mapped_column(Text, nullable=False)
@@ -64,10 +64,10 @@ class NodeVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class NodeKnowledge(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Mapping between nodes and their specific knowledge base vectors."""
 
-    __tablename__ = "agent_knowledge_bases"
+    __tablename__ = "node_knowledge_matrices"
 
     agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), primary_key=True
+        UUID(as_uuid=True), ForeignKey("processing_nodes.id", ondelete="CASCADE"), primary_key=True
     )
     kb_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), primary_key=True
@@ -78,10 +78,11 @@ class NodeKnowledge(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class NodePrompt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Specific prompt templates assigned to cognitive nodes."""
     
+    # Not sure if this table exists in DB, leaving as is for now unless it causes errors.
     __tablename__ = "agent_prompts"
     
     agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE")
+        UUID(as_uuid=True), ForeignKey("processing_nodes.id", ondelete="CASCADE")
     )
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
@@ -90,10 +91,10 @@ class NodePrompt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class BehavioralProbe(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Monitoring and evaluation metrics for agent behavior quality."""
     
-    __tablename__ = "agent_behavioral_probes"
+    __tablename__ = "behavioral_probes"
     
     agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE")
+        UUID(as_uuid=True), ForeignKey("processing_nodes.id", ondelete="CASCADE")
     )
     probe_type: Mapped[str] = mapped_column(String(50), nullable=False)
     probe_result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=True)

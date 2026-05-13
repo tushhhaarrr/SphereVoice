@@ -224,15 +224,9 @@ export function CreateAgentDialog({
 
             // Auto-attach KB if opted in
             if (useKbContext && selectedKbId) {
-                const { getSession } = await import("next-auth/react");
-                const session = await getSession();
-                const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998";
-                await fetch(`${apiBase}/api/v1/agents/${agent.id}/knowledge-bases`, {
+                const { fetchWithAuth } = await import("@/lib/api-client");
+                await fetchWithAuth(`/api/v1/agents/${agent.id}/knowledge-bases`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...(session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {}),
-                    },
                     body: JSON.stringify({ kb_id: selectedKbId }),
                 });
             }
@@ -283,7 +277,7 @@ export function CreateAgentDialog({
                             <button
                                 type="button"
                                 onClick={() => handleTypeSelect("single_prompt")}
-                                className="group flex items-start gap-4 rounded-lg border-2 border-border p-4 text-left transition-all hover:border-primary hover:bg-primary/5"
+                                className="group relative flex items-start gap-4 overflow-hidden rounded-xl border-2 border-muted bg-card p-5 text-left transition-all hover:border-primary/50 hover:bg-muted/50 hover:shadow-md"
                             >
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white">
                                     <Sparkles className="h-5 w-5" />
@@ -298,7 +292,7 @@ export function CreateAgentDialog({
                             <button
                                 type="button"
                                 onClick={() => handleTypeSelect("conversation_flow")}
-                                className="group flex items-start gap-4 rounded-lg border-2 border-border p-4 text-left transition-all hover:border-primary hover:bg-primary/5"
+                                className="group relative flex items-start gap-4 overflow-hidden rounded-xl border-2 border-muted bg-card p-5 text-left transition-all hover:border-primary/50 hover:bg-muted/50 hover:shadow-md"
                             >
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 text-white">
                                     <Wand2 className="h-5 w-5" />

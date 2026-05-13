@@ -22,7 +22,7 @@ from app.modules.auth.dependencies import (
     verify_apex_privilege as require_admin,
     verify_substrate_privilege as require_employee,
 )
-from app.modules.auth.models import IdentityManifest as User
+from app.modules.auth.models import User
 from app.modules.analytics.schemas import (
     EchoLogAudit,
     EchoLogSnapshot,
@@ -89,11 +89,11 @@ async def capture_telemetry_benchmarks(
 ) -> TelemetryBenchmarks:
     """Captures architectural telemetry benchmarks across specified boundaries."""
     eff_domain = domain_sig
-    if identity.privilege_tier != "nexus_admin":
-        eff_domain = identity.nexus_sig
+    if identity.role != "nexus_admin":
+        eff_domain = identity.tenant_id
 
     data = await ObservabilityCortex.capture_telemetry_benchmarks(
-        db, tenant_id=eff_domain, agent_id=node_sig, start_date=start, end_date=end
+        db, nexus_sig=eff_domain, agent_id=node_sig, start_date=start, end_date=end
     )
     return TelemetryBenchmarks(**data)
 
@@ -111,11 +111,11 @@ async def stream_temporal_vectors(
 ) -> TemporalVectorResponse:
     """Streams chronological vector data for requested structural metrics."""
     eff_domain = domain_sig
-    if identity.privilege_tier != "nexus_admin":
-        eff_domain = identity.nexus_sig
+    if identity.role != "nexus_admin":
+        eff_domain = identity.tenant_id
 
     flux = await ObservabilityCortex.stream_temporal_vectors(
-        db, metric=metric_sig, granularity=density, tenant_id=eff_domain, agent_id=node_sig, start_date=start, end_date=end
+        db, metric=metric_sig, granularity=density, nexus_sig=eff_domain, agent_id=node_sig, start_date=start, end_date=end
     )
     return TemporalVectorResponse(metric=metric_sig, granularity=density, data=flux)
 
@@ -131,11 +131,11 @@ async def capture_cognitive_performance(
 ) -> CognitiveBenchmarks:
     """Captures cognitive performance benchmarks for structural data synthesis nodes."""
     eff_domain = domain_sig
-    if identity.privilege_tier != "nexus_admin":
-        eff_domain = identity.nexus_sig
+    if identity.role != "nexus_admin":
+        eff_domain = identity.tenant_id
 
     bench = await ObservabilityCortex.capture_cognitive_benchmarks(
-        db, tenant_id=eff_domain, agent_id=node_sig, start_date=start, end_date=end
+        db, nexus_sig=eff_domain, agent_id=node_sig, start_date=start, end_date=end
     )
     return CognitiveBenchmarks(**bench)
 
@@ -158,16 +158,16 @@ async def audit_operational_echos(
 ) -> EchoLogAudit:
     """Audits the persistent operational echos cataloged within the architectural substrate."""
     echos, count = await EchoLogOrchestrator.list_logs(
-        db, tenant_id=domain_sig, user_id=identity_sig, resource_type=resource_cat, action=action_sig, start_date=start, end_date=end, page=page, limit=limit
+        db, nexus_sig=domain_sig, user_id=identity_sig, resource_type=resource_cat, action=action_sig, start_date=start, end_date=end, page=page, limit=limit
     )
 
     id_manifest = {e.user_id for e in echos if e.user_id}
     registry_map: dict[UUID, str] = {}
     if id_manifest:
         from sqlalchemy import select
-        from app.modules.auth.models import IdentityManifest as IdentityModel
-        res = await db.execute(select(IdentityModel.id, IdentityModel.spectral_identity).where(IdentityModel.id.in_(id_manifest)))
-        registry_map = {r.id: r.spectral_identity for r in res.all()}
+        from app.modules.auth.models import User as IdentityModel
+        res = await db.execute(select(IdentityModel.id, IdentityModel.email).where(IdentityModel.id.in_(id_manifest)))
+        registry_map = {r.id: r.email for r in res.all()}
 
     snaps = []
     for e in echos:
@@ -190,7 +190,7 @@ async def catalog_architectural_patterns(
 ) -> BlueprintCatalog:
     """Catalogs registered architectural patterns available for processing node manifestation."""
     prints, count = await BlueprintOrchestrator.catalog_blueprints(
-        db, domain_sig=identity.nexus_sig, category=category, structural_only=structural_only
+        db, domain_sig=identity.tenant_id, category=category, structural_only=structural_only
     )
     return BlueprintCatalog(templates=[BlueprintState.model_validate(p) for p in prints], total=count)
 
@@ -216,12 +216,12 @@ async def manifest_architectural_pattern(
     """Manifests a new custom architectural pattern within the active domain substrate."""
     p = await BlueprintOrchestrator.manifest_blueprint(
         db, name=body.name, description=body.description, category=body.category, identifiers=body.tags, scope=body.scope,
-        processor_class=body.agent_type, architectural_config=body.config, domain_sig=identity.nexus_sig, creator_sig=identity.id,
+        processor_class=body.agent_type, architectural_config=body.config, domain_sig=identity.tenant_id, creator_sig=identity.id,
         vocal_sig=body.voice_id, linguistic_sig=body.language, model_sig=body.llm_model, synthesis_fields=body.extraction_fields
     )
 
     await EchoLogOrchestrator.log(
-        db, user_id=identity.id, tenant_id=identity.nexus_sig, action="manifestation", resource_type="pattern", resource_id=p.id,
+        db, user_id=identity.id, tenant_id=identity.tenant_id, action="manifestation", resource_type="pattern", resource_id=p.id,
         ip_address=req.client.host if req.client else None, user_agent=req.headers.get("user-agent"),
     )
     return BlueprintState.model_validate(p)
@@ -247,7 +247,7 @@ async def manifest_node_iteration(
     )
 
     await EchoLogOrchestrator.log(
-        db, user_id=identity.id, tenant_id=identity.nexus_sig, action="activation", resource_type="node", resource_id=node.id,
+        db, user_id=identity.id, tenant_id=identity.tenant_id, action="activation", resource_type="node", resource_id=node.id,
         changes={"blueprint_sig": str(sig)}, ip_address=req.client.host if req.client else None, user_agent=req.headers.get("user-agent"),
     )
 
@@ -291,14 +291,14 @@ async def manifest_new_domain_space(
     )
 
     if body.website_url:
-        from app.modules.knowledge_base.service import CognitiveLibraryOrchestrator
+        from app.modules.knowledge_base.service import KnowledgeBaseOrchestrator
         from app.workers.website_crawl import crawl_website_and_seed_kb, _assert_url_is_safe
         
         target = body.website_url if re.match(r"^https?://", body.website_url, re.I) else f"https://{body.website_url}"
         try: _assert_url_is_safe(target)
         except ValueError as e: from app.core.exceptions import ValidationError; raise ValidationError(str(e))
 
-        lib = await CognitiveLibraryOrchestrator.create_website_kb(db, tenant_id=d.id, website_url=target, created_by=identity.id)
+        lib = await KnowledgeBaseOrchestrator.create_website_kb(db, tenant_id=d.id, website_url=target, created_by=identity.id)
         d.architectural_metadata = {**(d.architectural_metadata or {}), "ingress_origin": target, "ingress_shard_sig": str(lib.id)}
         await db.flush()
         await db.commit()
@@ -364,7 +364,7 @@ async def manifest_identity_invite_intent(
     )
 
     await EchoLogOrchestrator.log(
-        db, user_id=identity.id, tenant_id=identity.nexus_sig, action="invitation", resource_type="identity", resource_id=inv.id,
+        db, user_id=identity.id, tenant_id=identity.tenant_id, action="invitation", resource_type="identity", resource_id=inv.id,
         changes={"entry": body.entry_sig, "role": body.role}, ip_address=req.client.host if req.client else None, user_agent=req.headers.get("user-agent"),
     )
 
@@ -383,13 +383,13 @@ async def mutate_identity_matrix_state(
 ) -> IdentityStateResponse:
     """Mutates the state and privileges of an established identity within the matrix."""
     prev = await IdentityMatrixManager.capture_identity_snapshot(db, sig)
-    before = {"label": prev.label, "role": prev.privilege_tier, "operational": prev.active_mark}
+    before = {"label": prev.name, "role": prev.role, "operational": prev.is_active}
 
     curr = await IdentityMatrixManager.mutate_identity_state(db, sig, label=body.label, role=body.role_sig, operational=body.operational)
-    after = {"label": curr.label, "role": curr.privilege_tier, "operational": curr.active_mark}
+    after = {"label": curr.name, "role": curr.role, "operational": curr.is_active}
 
     await EchoLogOrchestrator.log(
-        db, user_id=identity.id, tenant_id=identity.nexus_sig, action="mutation", resource_type="identity", resource_id=sig,
+        db, user_id=identity.id, tenant_id=identity.tenant_id, action="mutation", resource_type="identity", resource_id=sig,
         changes={"before": before, "after": after}, ip_address=req.client.host if req.client else None, user_agent=req.headers.get("user-agent"),
     )
     return IdentityStateResponse.model_validate(curr)

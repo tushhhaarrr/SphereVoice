@@ -37,7 +37,7 @@ from app.modules.phone_numbers.service import IngressConduitOrchestrator
 
 telemetry_logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/phone-numbers", tags=["Ingress Conduit Management"])
+router = APIRouter(prefix="/phone-numbers", tags=["Phone Numbers"])
 
 
 @router.get(

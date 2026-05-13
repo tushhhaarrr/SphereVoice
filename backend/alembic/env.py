@@ -27,7 +27,7 @@ except ImportError:
     SignalSynchronisation = object
     SynchronisationTelemetry = object
 
-from app.modules.auth.models import NexusRegistry, IdentityManifest  # noqa: F401
+from app.modules.auth.models import Tenant, User  # noqa: F401
 from app.modules.providers.models import ProviderKey  # noqa: F401
 from app.modules.agents.models import Agent, AgentVersion, AgentKnowledgeBase  # noqa: F401
 from app.modules.knowledge_base.models import KnowledgeBase, KBDocument, KBEmbedding  # noqa: F401

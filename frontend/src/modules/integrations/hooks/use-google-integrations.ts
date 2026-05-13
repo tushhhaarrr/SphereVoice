@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * Google Calendar & Sheets integration hooks using TanStack Query.
@@ -29,11 +29,15 @@ export function useGoogleCalendarIntegrations(tenantId?: string) {
             const params = new URLSearchParams();
             if (tenantId) params.set("tenant_id", tenantId);
             const qs = params.toString();
-            const res = await fetchWithAuth(
-                `/api/v1/integrations/google/calendar${qs ? `?${qs}` : ""}`,
-            );
-            if (!res.ok) throw new Error("Failed to fetch Google Calendar integrations");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/integrations/google/calendar${qs ? `?${qs}` : ""}`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { integrations: [], total: 0 } as GoogleIntegrationListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { integrations: [], total: 0 } as GoogleIntegrationListResponse;
+            }
         },
     });
 }
@@ -103,11 +107,15 @@ export function useGoogleSheetsIntegrations(tenantId?: string) {
             const params = new URLSearchParams();
             if (tenantId) params.set("tenant_id", tenantId);
             const qs = params.toString();
-            const res = await fetchWithAuth(
-                `/api/v1/integrations/google/sheets${qs ? `?${qs}` : ""}`,
-            );
-            if (!res.ok) throw new Error("Failed to fetch Google Sheets integrations");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/integrations/google/sheets${qs ? `?${qs}` : ""}`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { integrations: [], total: 0 } as GoogleIntegrationListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { integrations: [], total: 0 } as GoogleIntegrationListResponse;
+            }
         },
     });
 }
@@ -167,3 +175,4 @@ export function useDisconnectGoogleSheets(tenantId?: string) {
         },
     });
 }
+

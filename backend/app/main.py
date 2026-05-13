@@ -13,12 +13,13 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.middleware import setup_middleware
 from app.core.telemetry import setup_opentelemetry, instrument_fastapi_app
+from app.core.errors import setup_exception_handlers
 
 # ── FORCED MODEL REGISTRATION (CRITICAL FIX) ──────────────────────
 from app.core.database import Base
 from app.modules.agents.models import AgentKnowledgeBase
 from app.modules.knowledge_base.models import KnowledgeBase
-from app.modules.calls.models import SignalSynchronisation
+from app.modules.calls.models import VoiceEngine
 
 # Satisfy string-based relationships using aliases
 Base.registry._class_registry['NodeKnowledgeMatrix'] = AgentKnowledgeBase
@@ -26,22 +27,27 @@ Base.registry._class_registry['NodeKnowledge'] = AgentKnowledgeBase
 # ──────────────────────────────────────────────────────────────────
 
 # ── Architectural Component Hubs ──────────────────────────────────
-from app.modules.auth.router import alignment_router as access_hub
+from app.modules.auth.router import auth_router
 from app.modules.auth.compat_router import auth_compat_router
-from app.modules.agents.router import nexus_router as structural_nodes_hub
-from app.modules.calls.router import synchronisation_router as session_telemetry_hub
-from app.modules.providers.router import router as resolution_vectors_hub
-from app.modules.pipeline.router import router as signal_hub
-from app.modules.knowledge_base.router import router as cognitive_base_hub
-from app.modules.analytics.router import router as telemetry_matrix_hub
-from app.modules.webhooks.router import router as event_propagation_hub
-from app.modules.phone_numbers.router import router as transport_ingress_hub
-from app.modules.pipeline.ws_endpoint import router as real_time_gateway
-from app.modules.agents.share_link_router import router as delegate_node_hub
-from app.modules.agents.share_link_public_router import router as public_node_hub
-from app.modules.integrations.router import router as sync_junction_hub
-from app.modules.campaigns.router import router as outbound_orchestrator_hub
-from app.modules.pricing.router import router as internal_cost_matrix
+from app.modules.agents.router import agents_router
+from app.modules.calls.router import synchronisation_router as calls_router
+from app.modules.providers.router import router as providers_router
+from app.modules.pipeline.router import router as pipeline_router
+from app.modules.knowledge_base.router import router as knowledge_base_router
+from app.modules.knowledge_base.router import node_library_router
+from app.modules.analytics.router import router as analytics_router
+from app.modules.webhooks.router import router as webhooks_router
+from app.modules.phone_numbers.router import router as phone_numbers_router
+from app.modules.pipeline.ws_endpoint import router as ws_router
+from app.modules.agents.share_link_router import router as agents_share_router
+from app.modules.agents.share_link_public_router import router as agents_public_router
+from app.modules.integrations.router import router as integrations_router
+from app.modules.campaigns.router import router as campaigns_router
+from app.modules.pricing.router import router as pricing_router
+from app.modules.integrations.google.router import router as google_integrations_router
+from app.modules.integrations.calendly.router import router as calendly_integrations_router
+from app.modules.tool_registry.router import router as tool_registry_router
+from app.modules.dnc.router import router as dnc_router
 
 setup_logging()
 settings = get_settings()
@@ -73,8 +79,8 @@ async def _initialize_architectural_baselines() -> None:
         async with async_session_factory() as db:
             # 2. Seed pricing benchmarks
             try:
-                from app.modules.pricing.seed_pricing import seed_spectral_benchmarks
-                await seed_spectral_benchmarks(db)
+                from app.modules.pricing.seed_pricing import seed_billing
+                await seed_billing(db)
             except Exception as e:
                 logger.warning("pricing_seed_skipped", error=str(e))
             
@@ -96,23 +102,23 @@ async def _finalize_stalled_sessions() -> None:
     from datetime import datetime, timedelta, UTC
     from sqlalchemy import update, text
     from app.core.database import async_session_factory
-    from app.modules.calls.models import SignalSynchronisation
+    from app.modules.calls.models import VoiceEngine
 
     limit = datetime.now(UTC) - timedelta(hours=2)
     try:
         async with async_session_factory() as db:
             # Safe table check before attempting cleanup
             check = await db.execute(text(
-                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'signal_synchronisations')"
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'voice_engines')"
             ))
             if not check.scalar():
                 logger.info("skip_session_cleanup", reason="table_not_found")
                 return
 
             await db.execute(
-                update(SignalSynchronisation)
-                .where(SignalSynchronisation.operational_status.in_(["ringing", "in_progress"]), 
-                       SignalSynchronisation.initiation_timestamp < limit)
+                update(VoiceEngine)
+                .where(VoiceEngine.operational_status.in_(["ringing", "in_progress"]), 
+                       VoiceEngine.initiation_timestamp < limit)
                 .values(operational_status="completed", termination_logic="architectural_cleanup")
             )
             await db.commit()
@@ -158,22 +164,27 @@ setup_middleware(app)
 instrument_fastapi_app(app)
 
 API_V1 = settings.API_V1_PREFIX
-app.include_router(access_hub, prefix=API_V1)
+app.include_router(auth_router, prefix=API_V1)
 app.include_router(auth_compat_router, prefix=API_V1)
-app.include_router(structural_nodes_hub, prefix=API_V1)
-app.include_router(session_telemetry_hub, prefix=API_V1)
-app.include_router(resolution_vectors_hub, prefix=API_V1)
-app.include_router(signal_hub, prefix=API_V1)
-app.include_router(cognitive_base_hub, prefix=API_V1)
-app.include_router(telemetry_matrix_hub, prefix=API_V1)
-app.include_router(event_propagation_hub, prefix=API_V1)
-app.include_router(transport_ingress_hub, prefix=API_V1)
-app.include_router(delegate_node_hub, prefix=API_V1)
-app.include_router(public_node_hub, prefix=API_V1)
-app.include_router(sync_junction_hub, prefix=API_V1)
-app.include_router(outbound_orchestrator_hub, prefix=API_V1)
-app.include_router(internal_cost_matrix, prefix=API_V1)
-app.include_router(real_time_gateway)
+app.include_router(agents_router, prefix=API_V1)
+app.include_router(calls_router, prefix=API_V1)
+app.include_router(providers_router, prefix=API_V1)
+app.include_router(pipeline_router, prefix=API_V1)
+app.include_router(knowledge_base_router, prefix=API_V1)
+app.include_router(node_library_router, prefix=API_V1)
+app.include_router(analytics_router, prefix=API_V1)
+app.include_router(webhooks_router, prefix=API_V1)
+app.include_router(phone_numbers_router, prefix=API_V1)
+app.include_router(agents_share_router, prefix=API_V1)
+app.include_router(agents_public_router, prefix=API_V1)
+app.include_router(integrations_router, prefix=API_V1)
+app.include_router(campaigns_router, prefix=API_V1)
+app.include_router(pricing_router, prefix=API_V1)
+app.include_router(google_integrations_router, prefix=API_V1)
+app.include_router(calendly_integrations_router, prefix=API_V1)
+app.include_router(tool_registry_router, prefix=API_V1)
+app.include_router(dnc_router, prefix=API_V1)
+app.include_router(ws_router)
 
 
 @app.get("/health", tags=["Health"])

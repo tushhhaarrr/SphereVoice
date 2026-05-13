@@ -1,4 +1,4 @@
-"""Signal Synchronisation — SignalStream architectural substrate models."""
+"""Voice Engine — SignalStream architectural substrate models."""
 
 from __future__ import annotations
 
@@ -19,13 +19,14 @@ class SynchronisationTelemetry(UUIDPrimaryKeyMixin, Base):
 
     __tablename__ = "synchronisation_telemetry"
 
-    sync_sig: Mapped[uuid.UUID] = mapped_column(
+    voice_engine_id: Mapped[uuid.UUID] = mapped_column(
+        "sync_sig",
         UUID(as_uuid=True),
-        ForeignKey("signal_synchronisations.id", ondelete="CASCADE"),
+        ForeignKey("voice_engines.id", ondelete="CASCADE"),
         nullable=False,
     )
-    event_class: Mapped[str] = mapped_column(String(50), nullable=False)
-    telemetry_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    event_type: Mapped[str] = mapped_column("event_class", String(50), nullable=False)
+    payload: Mapped[dict] = mapped_column("telemetry_payload", JSONB, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=text("NOW()"),
@@ -33,7 +34,7 @@ class SynchronisationTelemetry(UUIDPrimaryKeyMixin, Base):
     )
 
     # Architectural Linkage
-    synchronisation: Mapped["SignalSynchronisation"] = relationship("SignalSynchronisation", back_populates="telemetry_stream")
+    synchronisation: Mapped["VoiceEngine"] = relationship("VoiceEngine", back_populates="telemetry_stream")
 
     __table_args__ = (
         Index("idx_telemetry_parent", "sync_sig"),
@@ -42,50 +43,52 @@ class SynchronisationTelemetry(UUIDPrimaryKeyMixin, Base):
     )
 
     def __repr__(self) -> str:
-        return f"<SynchronisationTelemetry(id={self.id}, class='{self.event_class}')>"
+        return f"<SynchronisationTelemetry(id={self.id}, type='{self.event_type}')>"
 
 
-class SignalSynchronisation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+class VoiceEngine(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     """Persistent log of a synchronous architectural interaction involving a processing node."""
 
-    __tablename__ = "signal_synchronisations"
+    __tablename__ = "voice_engines"
 
-    node_sig: Mapped[uuid.UUID] = mapped_column(
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        "node_sig",
         UUID(as_uuid=True),
         ForeignKey("processing_nodes.id", ondelete="CASCADE"),
         nullable=False,
     )
-    ingress_conduit_sig: Mapped[uuid.UUID | None] = mapped_column(
+    phone_number_id: Mapped[uuid.UUID | None] = mapped_column(
+        "ingress_conduit_sig",
         UUID(as_uuid=True),
         ForeignKey("ingress_conduits.id", ondelete="SET NULL"),
         nullable=True,
     )
 
     # Signal Vectors
-    origin_vector: Mapped[str] = mapped_column(String(20), nullable=False)
-    destination_vector: Mapped[str] = mapped_column(String(20), nullable=False)
-    topology_direction: Mapped[str] = mapped_column(String(20), nullable=False)
+    origin: Mapped[str] = mapped_column("origin_vector", String(20), nullable=False)
+    destination: Mapped[str] = mapped_column("destination_vector", String(20), nullable=False)
+    direction: Mapped[str] = mapped_column("topology_direction", String(20), nullable=False)
 
     # Temporal Phasing
     initiation_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    operational_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column("operational_status", String(20), nullable=False)
     termination_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    duration_interval: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    termination_logic: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    duration: Mapped[int | None] = mapped_column("duration_interval", Integer, nullable=True)
+    disposition: Mapped[str | None] = mapped_column("termination_logic", String(100), nullable=True)
 
     # Archival Streams
     archival_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     archival_duration_interval: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    lexical_chronicle: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    transcript: Mapped[dict | None] = mapped_column("lexical_chronicle", JSONB, nullable=True)
 
     # Transmission Metrics
     vector_cycle_count: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
     avg_transmission_delay: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    abstracted_manifest: Mapped[dict] = mapped_column(
-        JSONB, server_default=text("'{}'::jsonb"), nullable=False
+    summary: Mapped[dict] = mapped_column(
+        "abstracted_manifest", JSONB, server_default=text("'{}'::jsonb"), nullable=False
     )
-    abstraction_finalised_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    summary_finalized_at: Mapped[datetime | None] = mapped_column(
+        "abstraction_finalised_at", DateTime(timezone=True), nullable=True
     )
 
     # Architectural Overhead
@@ -132,12 +135,12 @@ class SignalSynchronisation(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Ba
 
     def __repr__(self) -> str:
         return (
-            f"<SignalSynchronisation(id={self.id}, "
-            f"topology='{self.topology_direction}', "
-            f"phase='{self.operational_status}')>"
+            f"<VoiceEngine(id={self.id}, "
+            f"direction='{self.direction}', "
+            f"status='{self.status}')>"
         )
 # ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
 # Map legacy names used in Alembic to your new architectural classes
 
-Call = SignalSynchronisation
+Call = VoiceEngine
 CallEvent = SynchronisationTelemetry

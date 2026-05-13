@@ -1,4 +1,4 @@
-"""Signal Propagation workers — Celery tasks for substrate orchestration and writeback.
+"""Campaigns workers — Celery tasks for substrate orchestration and writeback.
 
 Tasks:
 1. orchestrate_propagation_cycle: Coordinator for bulk signal propagation.
@@ -67,7 +67,7 @@ async def _orchestrate_propagation_cycle_async(campaign_id: str) -> dict[str, An
     from app.core.config import get_settings
     from app.modules.campaigns.queue import get_campaign_queue
     from app.modules.campaigns.rate_limiter import CampaignRateLimiter
-    from app.modules.campaigns.service import SignalPropagationOrchestrator
+    from app.modules.campaigns.service import CampaignsOrchestrator
 
     settings = get_settings()
     uid = UUID(campaign_id)
@@ -82,7 +82,7 @@ async def _orchestrate_propagation_cycle_async(campaign_id: str) -> dict[str, An
 
     try:
         async with session_factory() as db:
-            campaign = await SignalPropagationOrchestrator.get_campaign(db, uid, uid)
+            campaign = await CampaignsOrchestrator.get_campaign(db, uid, uid)
             tenant_id = campaign.tenant_id
 
             await rate_limiter.set_campaign_status(campaign_id, campaign.operational_status)
@@ -111,10 +111,10 @@ async def _orchestrate_propagation_cycle_async(campaign_id: str) -> dict[str, An
 
             # Fetch next batch of propagation targets
             async with session_factory() as db:
-                targets = await SignalPropagationOrchestrator.fetch_next_batch(db, uid, batch_size=10)
+                targets = await CampaignsOrchestrator.fetch_next_batch(db, uid, batch_size=10)
 
                 if not targets:
-                    await SignalPropagationOrchestrator.complete_campaign(db, uid, tenant_id)
+                    await CampaignsOrchestrator.complete_campaign(db, uid, tenant_id)
                     await db.commit()
                     logger.info("propagation_cycle_completed", total_processed=targets_processed)
                     break
@@ -132,7 +132,7 @@ async def _orchestrate_propagation_cycle_async(campaign_id: str) -> dict[str, An
                         targets_skipped += 1
                         continue
 
-                    await SignalPropagationOrchestrator.mark_contact_queued(db, target.id)
+                    await CampaignsOrchestrator.mark_contact_queued(db, target.id)
 
                     payload = {
                         "contact_id": str(target.id),
@@ -203,7 +203,7 @@ async def _execute_propagation_synchronisation_async(
 
     from app.core.config import get_settings
     from app.modules.campaigns.rate_limiter import CampaignRateLimiter, GlobalRateLimiter
-    from app.modules.campaigns.service import SignalPropagationOrchestrator
+    from app.modules.campaigns.service import CampaignsOrchestrator
     from app.modules.campaigns.models import PropagationTarget
 
     settings = get_settings()
@@ -237,7 +237,7 @@ async def _execute_propagation_synchronisation_async(
         PROPAGATION_ACTIVE.labels(tenant_id=str(tenant_id)).inc()
 
         async with session_factory() as db:
-            campaign = await SignalPropagationOrchestrator.get_campaign(db, campaign_uuid, tenant_id)
+            campaign = await CampaignsOrchestrator.get_campaign(db, campaign_uuid, tenant_id)
 
             target_data = target_payload.get("contact_data", {})
             vector_mapping = campaign.vector_mapping or {}
@@ -263,30 +263,24 @@ async def _execute_propagation_synchronisation_async(
             )
             await db.flush()
 
-            logger.info(
-                "propagation_synchronisation_starting",
-                vector=dest_vector,
-                node=str(selected_node_sig),
-            )
-
-            from app.modules.calls.orchestrator import SynchronisationBridgeOrchestrator
+            from app.modules.calls.orchestrator import CallBridgeOrchestrator
 
             sync_start = time.monotonic()
 
-            sync_result = await SynchronisationBridgeOrchestrator.initiate_outbound_synchronisation(
+            sync_result = await CallBridgeOrchestrator.initiate_outbound_call(
                 db=db,
-                node_sig=selected_node_sig,
-                nexus_sig=tenant_id,
-                target_vector=dest_vector,
-                origin_vector=origin_vector,
-                dynamic_nodal_vectors=dynamic_vectors,
-                architectural_metadata={"campaign_id": campaign_id, "target_id": str(target_id)},
+                agent_id=selected_node_sig,
+                tenant_id=tenant_id,
+                to_number=dest_vector,
+                from_number=origin_vector,
+                dynamic_variables=dynamic_vectors,
+                metadata={"campaign_id": campaign_id, "target_id": str(target_id)},
             )
 
             sync_sig = sync_result.get("sync_sig")
             if sync_sig:
                 structlog.contextvars.bind_contextvars(sync_sig=sync_sig)
-                await SignalPropagationOrchestrator.mark_contact_calling(db, target_id, UUID(sync_sig))
+                await CampaignsOrchestrator.mark_contact_calling(db, target_id, UUID(sync_sig))
                 await db.commit()
 
             phase = sync_result.get("state", "completed")
@@ -297,22 +291,22 @@ async def _execute_propagation_synchronisation_async(
 
             elif phase == "voicemail":
                 # Assuming simple completion for voicemail in this substrate
-                await SignalPropagationOrchestrator.update_contact_result(db=db, contact_id=target_id, status="voicemail")
-                await SignalPropagationOrchestrator.increment_campaign_stats(db=db, campaign_id=campaign_uuid, completed=1, successful=1)
+                await CampaignsOrchestrator.update_contact_result(db=db, contact_id=target_id, status="voicemail")
+                await CampaignsOrchestrator.increment_campaign_stats(db=db, campaign_id=campaign_uuid, completed=1, successful=1)
                 PROPAGATION_TOTAL.labels(campaign_id=campaign_id, status="voicemail").inc()
 
             else:
                 extracted = sync_result.get("extracted_data", {})
                 interfaces = sync_result.get("interface_results", [])
 
-                await SignalPropagationOrchestrator.update_contact_result(
+                await CampaignsOrchestrator.update_contact_result(
                     db=db,
                     contact_id=target_id,
                     status="completed",
                     extracted_data=extracted if extracted else None,
                     tool_results=interfaces if interfaces else None,
                 )
-                await SignalPropagationOrchestrator.increment_campaign_stats(db=db, campaign_id=campaign_uuid, completed=1, successful=1)
+                await CampaignsOrchestrator.increment_campaign_stats(db=db, campaign_id=campaign_uuid, completed=1, successful=1)
                 PROPAGATION_TOTAL.labels(campaign_id=campaign_id, status="completed").inc()
 
             await db.commit()
@@ -351,13 +345,13 @@ def execute_propagation_synchronisation(self: object, campaign_id: str, target: 
 async def _handle_propagation_retry(db, campaign_uuid, tenant_id, target_id, payload, reason):
     from sqlalchemy import update
     from app.modules.campaigns.models import PropagationTarget
-    from app.modules.campaigns.service import SignalPropagationOrchestrator
+    from app.modules.campaigns.service import CampaignsOrchestrator
 
     attempt = payload.get("attempt_count", 1)
     max_att = payload.get("max_attempts", 3)
 
     if attempt < max_att:
-        campaign = await SignalPropagationOrchestrator.get_campaign(db, campaign_uuid, tenant_id)
+        campaign = await CampaignsOrchestrator.get_campaign(db, campaign_uuid, tenant_id)
         delay = campaign.retry_delay_minutes if hasattr(campaign, 'retry_delay_minutes') else 15
         next_ts = datetime.now(UTC) + timedelta(minutes=delay)
 
@@ -368,8 +362,8 @@ async def _handle_propagation_retry(db, campaign_uuid, tenant_id, target_id, pay
         )
         logger.info("propagation_retry_scheduled", reason=reason, attempt=attempt, next_ts=next_ts.isoformat())
     else:
-        await SignalPropagationOrchestrator.update_contact_result(db=db, contact_id=target_id, status="failed")
-        await SignalPropagationOrchestrator.increment_campaign_stats(db=db, campaign_id=campaign_uuid, completed=1, failed=1)
+        await CampaignsOrchestrator.update_contact_result(db=db, contact_id=target_id, status="failed")
+        await CampaignsOrchestrator.increment_campaign_stats(db=db, campaign_id=campaign_uuid, completed=1, failed=1)
         logger.warning("propagation_max_retries_exceeded", reason=reason, attempts=attempt)
 
 
@@ -381,7 +375,7 @@ async def _handle_propagation_retry(db, campaign_uuid, tenant_id, target_id, pay
 async def _propagation_nexus_writeback_async(target_id: str) -> dict[str, Any]:
     """Write extracted synchronisation data back to the external Nexus (CRM)."""
     from app.modules.campaigns.models import PropagationTarget
-    from app.modules.campaigns.service import SignalPropagationOrchestrator
+    from app.modules.campaigns.service import CampaignsOrchestrator
 
     uid = UUID(target_id)
     structlog.contextvars.bind_contextvars(target_id=target_id)
@@ -399,7 +393,7 @@ async def _propagation_nexus_writeback_async(target_id: str) -> dict[str, Any]:
             if not target.crm_record_id or not target.crm_module:
                 return {"status": "skipped", "reason": "No Nexus identifier"}
 
-            campaign = await SignalPropagationOrchestrator.get_campaign(db, target.campaign_id, target.tenant_id)
+            campaign = await CampaignsOrchestrator.get_campaign(db, target.campaign_id, target.tenant_id)
             mapping = campaign.writeback_mapping or {}
             extracted = target.abstracted_manifest or {}
 

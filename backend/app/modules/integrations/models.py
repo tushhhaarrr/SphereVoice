@@ -79,7 +79,7 @@ class CrmSyncLog(Base):
     )
     call_id: Mapped[str | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("signal_synchronisations.id", ondelete="SET NULL"),
+        ForeignKey("voice_engines.id", ondelete="SET NULL"),
         nullable=True,
     )
     direction: Mapped[str] = mapped_column(String(20), nullable=False)  # "broadcast" | "probe"

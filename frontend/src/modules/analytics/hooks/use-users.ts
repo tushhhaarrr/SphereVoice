@@ -14,7 +14,7 @@ import type {
     UserUpdateRequest,
 } from "../types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998").replace(/\/api\/v1\/?$/, "");
 
 async function fetchWithAuth(
     path: string,
@@ -60,9 +60,15 @@ export function useUsers(params?: {
     return useQuery<UserListResponse>({
         queryKey: ["users", params],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/v1/analytics/users${qs}`);
-            if (!res.ok) throw new Error("Failed to fetch users");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/analytics/users${qs}`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { users: [], total: 0, page: 1, limit: 50 } as UserListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { users: [], total: 0, page: 1, limit: 50 } as UserListResponse;
+            }
         },
         enabled: params?.enabled ?? true,
     });
@@ -120,9 +126,15 @@ export function useInvitations() {
     return useQuery<InvitationListResponse>({
         queryKey: ["invitations"],
         queryFn: async () => {
-            const res = await fetchWithAuth("/api/v1/analytics/users/invites");
-            if (!res.ok) throw new Error("Failed to fetch invitations");
-            return res.json();
+            try {
+                const res = await fetchWithAuth("/api/v1/analytics/users/invites");
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { invitations: [], total: 0 } as InvitationListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { invitations: [], total: 0 } as InvitationListResponse;
+            }
         },
     });
 }

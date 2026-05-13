@@ -1,4 +1,4 @@
-"""Cognitive Library Orchestrator — Structural Unstructured Intelligence Business Logic.
+"""Knowledge Base Orchestrator — Structural Unstructured Intelligence Business Logic.
 
 Handles:
 - Library manifestation and state mutations
@@ -97,7 +97,7 @@ async def synthesize_vector_batch(shards: list[str]) -> list[list[float]]:
 generate_embeddings_batch = synthesize_vector_batch
 
 
-class CognitiveLibraryOrchestrator:
+class KnowledgeBaseOrchestrator:
     """Architectural logic for cognitive library substrates and artifact management."""
 
     @staticmethod
@@ -154,7 +154,7 @@ class CognitiveLibraryOrchestrator:
         """Retrieves a cognitive library by its structural signature."""
         res = await db.execute(select(KnowledgeBase).options(selectinload(KnowledgeBase.documents)).where(KnowledgeBase.id == kb_id))
         kb = res.scalar_one_or_none()
-        if kb is None: raise NotFoundError("CognitiveLibrary", str(kb_id))
+        if kb is None: raise NotFoundError("KnowledgeBase", str(kb_id))
         return kb
 
     @staticmethod
@@ -165,7 +165,7 @@ class CognitiveLibraryOrchestrator:
         file_data: bytes,
     ) -> KBDocument:
         """Ingests a file artifact into the structural knowledge substrate."""
-        await CognitiveLibraryOrchestrator.get_kb(db, kb_id)
+        await KnowledgeBaseOrchestrator.get_kb(db, kb_id)
         sig_type = _resolve_type(filename)
 
         shard_key = f"cognitive/{kb_id}/{uuid.uuid4()}/{filename}"
@@ -231,7 +231,7 @@ class CognitiveLibraryOrchestrator:
     ) -> None:
         """Associates a cognitive library substrate with a structural node."""
         from app.modules.agents.models import ProcessorLibraryLink
-        await CognitiveLibraryOrchestrator.get_kb(db, kb_id)
+        await KnowledgeBaseOrchestrator.get_kb(db, kb_id)
 
         ex = await db.execute(select(ProcessorLibraryLink).where(ProcessorLibraryLink.processor_id == agent_id, ProcessorLibraryLink.library_id == kb_id))
         link = ex.scalar_one_or_none()

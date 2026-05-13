@@ -1,4 +1,4 @@
-"""Signal Synchronisation — SignalStream architectural substrate schemas."""
+"""Voice Engine — SignalStream architectural substrate schemas."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-TopologyDirection = Literal["inbound", "outbound"]
-SynchronisationPhase = Literal[
+Direction = Literal["inbound", "outbound"]
+CallStatus = Literal[
     "queued",
     "ringing",
     "in_progress",
@@ -21,94 +21,94 @@ SynchronisationPhase = Literal[
 ]
 
 
-class LexicalTurnShard(BaseModel):
-    """Reflects a single lexical turn within a signal vector."""
+class TranscriptTurn(BaseModel):
+    """Reflects a single turn within a call transcript."""
 
-    signal_origin: Literal["node", "user"] = Field(..., alias="speaker")
-    signal_payload: str = Field(..., alias="text")
-    timestamp: datetime | None = Field(None, alias="timestamp")
-    clarity_index: float | None = Field(None, alias="confidence")
+    speaker: Literal["node", "user"]
+    text: str
+    timestamp: datetime | None = None
+    confidence: float | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
 
-class SignalSynchronisationManifest(BaseModel):
-    """Manifestation of a captured signal synchronisation chronicle."""
+class CallResponse(BaseModel):
+    """Manifestation of a captured call record."""
 
     id: UUID
-    nexus_sig: UUID = Field(..., alias="tenant_id")
-    node_sig: UUID = Field(..., alias="agent_id")
-    ingress_conduit_sig: UUID | None = Field(None, alias="phone_number_id")
-    origin_vector: str = Field(..., alias="from_number")
-    destination_vector: str = Field(..., alias="to_number")
-    topology: TopologyDirection = Field(..., alias="direction")
+    tenant_id: UUID
+    agent_id: UUID
+    phone_number_id: UUID | None = None
+    origin: str = Field(..., alias="from_number")
+    destination: str = Field(..., alias="to_number")
+    direction: Direction
     initiation_timestamp: datetime = Field(..., alias="started_at")
     termination_timestamp: datetime | None = Field(None, alias="ended_at")
-    duration_interval: int | None = Field(None, alias="duration_seconds")
-    operational_status: SynchronisationPhase = Field(..., alias="status")
-    termination_logic: str | None = Field(None, alias="disconnection_reason")
+    duration: int | None = Field(None, alias="duration_seconds")
+    status: CallStatus
+    disposition: str | None = Field(None, alias="disconnection_reason")
     archival_url: str | None = Field(None, alias="recording_url")
-    lexical_chronicle: list[LexicalTurnShard] | None = Field(None, alias="transcript")
-    abstracted_manifest: dict[str, object] = Field(..., alias="extracted_data")
-    abstraction_finalised_at: datetime | None = Field(None, alias="extraction_completed_at")
-    transmission_delay: int | None = Field(None, alias="avg_latency_ms")
-    vector_cycle_count: int = Field(..., alias="turn_count")
-    utilization_matrix: dict[str, object] | None = Field(None, alias="usage_metrics")
-    downstream_sync_phase: str | None = Field(None, alias="writeback_status")
-    inception_timestamp: datetime = Field(..., alias="created_at")
+    transcript: list[TranscriptTurn] | None = None
+    summary: dict[str, object] = Field(..., alias="extracted_data")
+    summary_finalized_at: datetime | None = Field(None, alias="extraction_completed_at")
+    avg_latency_ms: int | None = Field(None, alias="avg_transmission_delay")
+    turns_count: int = Field(..., alias="vector_cycle_count")
+    usage_metrics: dict[str, object] | None = Field(None, alias="utilization_matrix")
+    writeback_status: str | None = Field(None, alias="downstream_sync_phase")
+    created_at: datetime = Field(..., alias="inception_timestamp")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-class SignalSynchronisationArchive(BaseModel):
-    """Aggregated synchronisation manifests for architectural inspection."""
+class CallListResponse(BaseModel):
+    """Aggregated call records for list responses."""
 
-    synchronisations: list[SignalSynchronisationManifest] = Field(..., alias="sessions")
-    total_count: int = Field(..., alias="total")
-    page_index: int = Field(..., alias="page")
-    limit_bound: int = Field(..., alias="limit")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class PropagationManifest(BaseModel):
-    """Architectural parameters for initiating an external signal vector propagation."""
-
-    node_sig: UUID = Field(..., alias="agent_id")
-    destination_vector: str = Field(..., max_length=20, alias="to_number")
-    origin_vector: str = Field(..., max_length=20, alias="from_number")
-    dynamic_nodal_vectors: dict[str, object] = Field(default_factory=dict, alias="dynamic_variables")
+    sessions: list[CallResponse]
+    total: int = Field(..., alias="total_count")
+    page: int = Field(..., alias="page_index")
+    limit: int = Field(..., alias="limit_bound")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
-class PropagationResolution(BaseModel):
-    """Verification of a successful signal vector propagation."""
+class CreateCallRequest(BaseModel):
+    """Parameters for initiating an outbound call."""
 
-    sync_sig: UUID = Field(..., alias="call_id")
-    operational_status: SynchronisationPhase = Field(..., alias="status")
-    initiation_timestamp: datetime = Field(..., alias="started_at")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class SyntheticIngressBlueprint(BaseModel):
-    """Requirements for initiating a synthetic ingress environmental stream."""
-
-    node_sig: UUID = Field(..., alias="agent_id")
-    dynamic_nodal_vectors: dict[str, object] = Field(default_factory=dict, alias="dynamic_variables")
-    behavioral_probe_sig: UUID | None = Field(None, alias="scenario_id")
-    node_revision: int | None = Field(None, alias="agent_version")
+    agent_id: UUID
+    to_number: str = Field(..., max_length=20, alias="destination_vector")
+    from_number: str = Field(..., max_length=20, alias="origin_vector")
+    dynamic_variables: dict[str, object] = Field(default_factory=dict, alias="dynamic_nodal_vectors")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
-class SpectralCellCoordinates(BaseModel):
-    """Network coordinates and access vectors for a synthetic architectural stream."""
+class CreateCallResponse(BaseModel):
+    """Response after initiating a call."""
 
-    sync_sig: UUID = Field(..., alias="call_id")
-    access_token: str = Field(..., alias="token")
-    spectral_cell_sig: str = Field(..., alias="room_name")
-    substrate_nexus_url: str = Field(..., alias="livekit_url")
+    call_id: UUID = Field(..., alias="sync_sig")
+    status: CallStatus = Field(..., alias="operational_status")
+    started_at: datetime = Field(..., alias="initiation_timestamp")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CreateSimulationRequest(BaseModel):
+    """Requirements for initiating a simulation (synthetic ingress)."""
+
+    agent_id: UUID = Field(..., alias="node_sig")
+    dynamic_variables: dict[str, object] = Field(default_factory=dict, alias="dynamic_nodal_vectors")
+    scenario_id: UUID | None = Field(None, alias="behavioral_probe_sig")
+    agent_version: int | None = Field(None, alias="node_revision")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class SimulationResponse(BaseModel):
+    """Network coordinates and access vectors for a simulation."""
+
+    call_id: UUID = Field(..., alias="sync_sig")
+    token: str = Field(..., alias="access_token")
+    room_name: str = Field(..., alias="spectral_cell_sig")
+    livekit_url: str = Field(..., alias="substrate_nexus_url")
 
     model_config = ConfigDict(populate_by_name=True)

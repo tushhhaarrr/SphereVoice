@@ -1,10 +1,10 @@
-/**
- * Test Call Hook — WebRTC connection to LiveKit for browser-based agent testing.
+﻿/**
+ * Test Call Hook â€” WebRTC connection to LiveKit for browser-based agent testing.
  *
  * Manages the lifecycle of a test call:
  * 1. Request a test room from the backend API
  * 2. Connect to LiveKit via WebRTC using livekit-client
- * 3. Handle audio I/O (mic → LiveKit → pipeline → LiveKit → speaker)
+ * 3. Handle audio I/O (mic â†’ LiveKit â†’ pipeline â†’ LiveKit â†’ speaker)
  * 4. Receive real-time transcript updates via LiveKit data channel
  * 5. Disconnect and clean up on call end
  *
@@ -72,7 +72,7 @@ interface TestCallActions {
   isMuted: boolean;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:2998";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:2998").replace(/\/api\/v1\/?$/, "");
 
 /** Counter for generating unique transcript entry IDs */
 let transcriptCounter = 0;
@@ -350,7 +350,7 @@ export function useTestCall(agentId: string): TestCallState & TestCallActions {
           }));
         } else if (connectionState === ConnectionState.Disconnected) {
           // Server-side hangup (end_on_silence, max_duration, agent end_call, etc.)
-          // Go to "ended" so the UI clearly shows the call has finished —
+          // Go to "ended" so the UI clearly shows the call has finished â€”
           // the user won't keep talking into dead air.
           if (roomRef.current === room) {
             room.removeAllListeners();
@@ -609,3 +609,4 @@ function parseLatencyService(
     model: service.model ?? null,
   };
 }
+

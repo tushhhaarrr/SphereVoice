@@ -1,4 +1,4 @@
-"""SignalStream Architectural Substrate — Nodal Engineering exports."""
+"""SignalStream Architectural Substrate — Agents exports."""
 
 from app.modules.agents.models import (
     BehavioralProbe,

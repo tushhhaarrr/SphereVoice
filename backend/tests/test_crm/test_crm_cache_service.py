@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.modules.integrations.crm_cache_service import CrmCacheService, _parse_zoho_datetime
+from app.modules.integrations.crm_cache_service import InventoryOrchestrator as CrmCacheService, _resolve_temporal_signature as _parse_zoho_datetime
 
 INTEGRATION_ID = uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
 TENANT_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")

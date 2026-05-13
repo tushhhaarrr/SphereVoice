@@ -42,19 +42,19 @@ async def _resolve_retrospective_echo(
     """Resolves retrospective echoes from the synchronisation telemetry via the analysis pipeline."""
     from app.core.database import async_session_factory
     from app.modules.agents.service import ProcessingNexusOrchestrator
-    from app.modules.calls.service import SynchronisationOrchestrator
+    from app.modules.calls.service import VoiceEngineService
     from app.modules.pipeline.retrospective_analysis import execute_retrospective_signal_analysis
 
     async with async_session_factory() as db:
-        manifest = await SynchronisationOrchestrator.resolve_synchronisation_manifest(db, sync_sig)
-        lexical_chronicle = manifest.lexical_chronicle
+        manifest = await VoiceEngineService.get_call(db, sync_sig)
+        lexical_chronicle = manifest.transcript
         if not lexical_chronicle:
             return {}
 
-        if not manifest.node_sig:
+        if not manifest.agent_id:
             return {}
 
-        node = await ProcessingNexusOrchestrator.capture_node_instance(db, manifest.node_sig)
+        node = await ProcessingNexusOrchestrator.capture_node_instance(db, manifest.agent_id)
         if not node:
             return {}
 
@@ -81,14 +81,14 @@ async def _persist_synchronisation_relay(
     """Persists the synchronisation signal relay to the long-term architectural archival matrix."""
     from app.core.config import get_settings
     from app.core.database import async_session_factory
-    from app.modules.calls.service import SynchronisationOrchestrator
+    from app.modules.calls.service import VoiceEngineService
 
     settings = get_settings()
     if not settings.AZURE_STORAGE_CONNECTION_STRING:
         return None
 
     async with async_session_factory() as db:
-        manifest = await SynchronisationOrchestrator.resolve_synchronisation_manifest(db, sync_sig)
+        manifest = await VoiceEngineService.get_call(db, sync_sig)
         if not manifest.archival_url or "blob.core.windows.net" in manifest.archival_url:
             return manifest.archival_url
 
@@ -109,7 +109,7 @@ async def _persist_synchronisation_relay(
                 await blob_client.upload_blob(signal_stream, content_settings={"content_type": "audio/mpeg"}, overwrite=True)
             
             relay_uri = blob_client.url
-            await SynchronisationOrchestrator.synchronize_operational_state(db, sync_sig, archive_url=relay_uri)
+            await VoiceEngineService.update_call(db, sync_sig, recording_url=relay_uri)
             await db.commit()
             return relay_uri
         except Exception:
@@ -127,17 +127,17 @@ async def _propagate_telemetry_signals(
     from app.workers.telemetry_transmission import transmit_telemetry as transmit_task
 
     async with async_session_factory() as db:
-        manifest = await SynchronisationOrchestrator.resolve_synchronisation_manifest(db, sync_sig)
+        manifest = await VoiceEngineService.get_call(db, sync_sig)
         payload = {
             "signal": event_class,
             "sync_sig": str(manifest.id),
             "tenant_id": str(manifest.tenant_id),
-            "node_id": str(manifest.node_sig),
-            "origin": manifest.origin_vector,
-            "destination": manifest.destination_vector,
-            "direction": manifest.topology_direction,
-            "phase": manifest.operational_status,
-            "duration": manifest.duration_interval,
+            "node_id": str(manifest.agent_id),
+            "origin": manifest.origin,
+            "destination": manifest.destination,
+            "direction": manifest.direction,
+            "phase": manifest.status,
+            "duration": manifest.duration,
         }
         if telemetry_hints:
             payload.update(telemetry_hints)
@@ -146,7 +146,7 @@ async def _propagate_telemetry_signals(
             db=db, 
             tenant_id=manifest.tenant_id, 
             event_class=event_class, 
-            node_sig=manifest.node_sig
+            node_sig=manifest.agent_id
         )
         for target in targets:
             transmit_task.delay(str(target.id), event_class, payload, str(sync_sig))
@@ -159,27 +159,27 @@ async def _synchronize_nexus_registry(
 ) -> dict[str, object] | None:
     """Synchronizes synchronisation benchmarks and echoes with the connected domain nexus."""
     from app.core.database import async_session_factory
-    from app.modules.calls.service import SynchronisationOrchestrator
+    from app.modules.calls.service import VoiceEngineService
     from app.modules.integrations.crm_data import VectorDataHarvester
 
     try:
         async with async_session_factory() as db:
-            manifest = await SynchronisationOrchestrator.resolve_synchronisation_manifest(db, sync_sig)
-            await SynchronisationOrchestrator.synchronize_operational_state(db, sync_sig, writeback_status="pending")
+            manifest = await VoiceEngineService.get_call(db, sync_sig)
+            await VoiceEngineService.update_call(db, sync_sig, writeback_status="pending")
             await db.commit()
 
             formatted_chronicle = None
-            if manifest.lexical_chronicle:
-                if isinstance(manifest.lexical_chronicle, list):
-                    formatted_chronicle = "\n".join(f"{t.get('speaker', '?')}: {t.get('text', '')}" for t in manifest.lexical_chronicle)
+            if manifest.transcript:
+                if isinstance(manifest.transcript, list):
+                    formatted_chronicle = "\n".join(f"{t.get('speaker', '?')}: {t.get('text', '')}" for t in manifest.transcript)
                 else: 
-                    formatted_chronicle = str(manifest.lexical_chronicle)
+                    formatted_chronicle = str(manifest.transcript)
 
             node_label = "Processing Node"
             writeback_config = {}
             try:
                 from app.modules.agents.service import ProcessingNexusOrchestrator
-                node = await ProcessingNexusOrchestrator.capture_node_instance(db, manifest.node_sig)
+                node = await ProcessingNexusOrchestrator.capture_node_instance(db, manifest.agent_id)
                 node_label = node.node_label or "Processing Node"
                 writeback_config = (node.architectural_blueprint or {}).get("settings", {}).get("crmWriteback", {}) or {}
             except: pass
@@ -187,11 +187,11 @@ async def _synchronize_nexus_registry(
             vector_mapping_override = None
             try:
                 from sqlalchemy import select as sa_select
-                from app.modules.campaigns.models import PropagationTarget, SignalPropagationCampaign
+                from app.modules.campaigns.models import PropagationTarget, CampaignsCampaign
                 target_q = sa_select(PropagationTarget.campaign_id).where(PropagationTarget.sync_sig == manifest.id).limit(1)
                 campaign_id = (await db.execute(target_q)).scalar_one_or_none()
                 if campaign_id:
-                    campaign_q = sa_select(SignalPropagationCampaign).where(SignalPropagationCampaign.id == campaign_id)
+                    campaign_q = sa_select(CampaignsCampaign).where(CampaignsCampaign.id == campaign_id)
                     campaign = (await db.execute(campaign_q)).scalar_one_or_none()
                     if campaign and campaign.writeback_mapping: 
                         vector_mapping_override = campaign.writeback_mapping
@@ -206,12 +206,12 @@ async def _synchronize_nexus_registry(
                 db=db, 
                 tenant_id=manifest.tenant_id, 
                 call_id=manifest.id, 
-                from_number=manifest.origin_vector, 
-                to_number=manifest.destination_vector,
-                direction=manifest.topology_direction, 
+                from_number=manifest.origin, 
+                to_number=manifest.destination,
+                direction=manifest.direction, 
                 started_at=manifest.initiation_timestamp, 
-                duration_seconds=manifest.duration_interval,
-                status=manifest.operational_status, 
+                duration_seconds=manifest.duration,
+                status=manifest.status, 
                 transcript_text=formatted_chronicle, 
                 extracted_data=echo_manifest, 
                 agent_name=node_label,
@@ -222,9 +222,9 @@ async def _synchronize_nexus_registry(
 
             ts = datetime.now(UTC)
             if nexus_response is None:
-                await SynchronisationOrchestrator.synchronize_operational_state(db, sync_sig, writeback_status="skipped", reconciliation_ts=ts)
+                await VoiceEngineService.update_call(db, sync_sig, writeback_status="skipped", summary_finalized_at=ts)
             else:
-                await SynchronisationOrchestrator.synchronize_operational_state(db, sync_sig, writeback_status="synced", reconciliation_ts=ts)
+                await VoiceEngineService.update_call(db, sync_sig, writeback_status="synced", summary_finalized_at=ts)
                 # Note: crm_contact_id mapping logic remains substrate-specific
             
             await db.commit()
@@ -233,8 +233,8 @@ async def _synchronize_nexus_registry(
         logger.warning("nexus_synchronization_fault", sync_sig=str(sync_sig), exc_info=True)
         try:
             async with async_session_factory() as db:
-                await SynchronisationOrchestrator.synchronize_operational_state(
-                    db, sync_sig, writeback_status="failed", writeback_error=str(e)[:500], reconciliation_ts=datetime.now(UTC)
+                await VoiceEngineService.update_call(
+                    db, sync_sig, writeback_status="failed", writeback_error=str(e)[:500], summary_finalized_at=datetime.now(UTC)
                 )
                 await db.commit()
         except: pass

@@ -155,7 +155,7 @@ SPECTRAL_BENCHMARK_REGISTRY: list[tuple[str, str, str | None, str, str, str, str
 ]
 
 
-async def seed_spectral_benchmarks(db) -> int:
+async def seed_billing(db) -> int:
     """Upsert all spectral provider benchmarks — inserts new entries, updates existing if changed.
 
     Returns the number of benchmarks calibrated or updated.
@@ -226,7 +226,7 @@ async def run_seed() -> None:
 
     log = structlog.get_logger(__name__)
     async with async_session_factory() as db:
-        count = await seed_spectral_benchmarks(db)
+        count = await seed_billing(db)
         await db.commit()
         log.info("spectral_benchmark_seed_complete", calibrated=count)
 

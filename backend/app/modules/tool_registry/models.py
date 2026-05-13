@@ -120,7 +120,7 @@ class SynchronisationInterfaceExecution(UUIDPrimaryKeyMixin, Base):
     sync_sig: Mapped[uuid.UUID] = mapped_column(
         "call_id",
         UUID(as_uuid=True),
-        ForeignKey("signal_synchronisations.id", ondelete="CASCADE"),
+        ForeignKey("voice_engines.id", ondelete="CASCADE"),
         nullable=False,
     )
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -160,3 +160,8 @@ class SynchronisationInterfaceExecution(UUIDPrimaryKeyMixin, Base):
 
     def __repr__(self) -> str:
         return f"<SynchronisationInterfaceExecution sync={self.sync_sig} label={self.interface_label} status={self.execution_status}>"
+
+
+# ── ALIASES FOR FULL COMPATIBILITY ──────────────────────────────────────────
+TenantTool = ArchitecturalInterface
+AgentTool = NodalInterfaceBinding

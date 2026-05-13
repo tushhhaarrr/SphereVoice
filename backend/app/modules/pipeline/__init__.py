@@ -2,7 +2,7 @@
 
 Exports: ManifoldGovernor, NodalProviderFactory, SpectralManifold,
          TopologicalFlowEngine, create_topological_engine,
-         SignalSynchronisationArchive, SubstrateResilienceGuard,
+         VoiceEngineArchive, SubstrateResilienceGuard,
          TransmissionOverheadAudit, ArchivalShardRetriever,
          variable_resolver utilities
 """

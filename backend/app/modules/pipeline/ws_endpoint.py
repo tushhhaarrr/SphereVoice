@@ -30,9 +30,9 @@ async def _authenticate_ws(websocket: WebSocket) -> dict[str, Any] | None:
     except: return None
 
 
-@router.websocket("/ws/synchronisations")
-async def live_synchronisations_ws(websocket: WebSocket) -> None:
-    """WebSocket endpoint for live synchronisation monitoring."""
+@router.websocket("/ws/live-calls")
+async def live_calls_ws(websocket: WebSocket) -> None:
+    """WebSocket endpoint for live call monitoring."""
     user = await _authenticate_ws(websocket)
     if user is None:
         await websocket.close(code=4001, reason="Authentication required")
@@ -68,15 +68,15 @@ async def live_synchronisations_ws(websocket: WebSocket) -> None:
                 msg = json.loads(raw)
                 action = msg.get("action")
 
-                if action == "terminate_synchronisation":
-                    sync_sig = msg.get("sync_sig")
-                    if sync_sig:
-                        logger.info("ws_termination_requested", sync_sig=sync_sig)
+                if action == "end_call":
+                    call_id = msg.get("call_id")
+                    if call_id:
+                        logger.info("ws_termination_requested", call_id=call_id)
                         from app.modules.pipeline.orchestrator import ManifoldGovernor
                         from app.core.database import async_session_factory
                         async with async_session_factory() as db:
                             governor = ManifoldGovernor(db)
-                            await governor.decommission_signal_vector(UUID(sync_sig))
+                            await governor.decommission_signal_vector(UUID(call_id))
 
             except asyncio.TimeoutError:
                 try: await websocket.send_json({"event": "ping"})

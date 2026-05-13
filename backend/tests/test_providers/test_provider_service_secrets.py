@@ -9,8 +9,9 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.providers.models import ProviderKey
-from app.modules.providers.service import ProviderService
+from app.modules.providers.models import BackendAccess
+from app.modules.providers.service import VectorRegistry
+from app.core.config import Settings
 
 
 @pytest.mark.asyncio
@@ -23,7 +24,7 @@ async def test_create_provider_uses_vault_for_global_secret() -> None:
 
     with (
         patch(
-            "app.modules.providers.service._should_use_vault_secret_storage",
+            "app.modules.providers.service._use_vault_for_vectors",
             return_value=True,
         ),
         patch(
@@ -32,19 +33,19 @@ async def test_create_provider_uses_vault_for_global_secret() -> None:
         ) as mock_store_secret,
         patch("app.modules.providers.service.encrypt") as mock_encrypt,
     ):
-        provider = await ProviderService.create_provider(
+        provider = await VectorRegistry.create_vector(
             db,
-            provider_name="groq",
-            provider_category="llm",
-            api_key="shared-groq-key",
+            vector_id="groq",
+            vector_domain="llm",
+            auth_sig="shared-groq-key",
             is_default=True,
             tenant_id=None,
         )
 
     mock_encrypt.assert_not_called()
-    assert provider.api_key_encrypted is None
+    assert provider.auth_sig_encrypted is None
     assert provider.secret_ref is not None
-    assert provider.secret_ref.startswith("SphereVoice-provider-llm-groq-")
+    assert provider.secret_ref.startswith("SphereVoice-vector-llm-groq-")
     mock_store_secret.assert_awaited_once_with(provider.secret_ref, "shared-groq-key")
 
 
@@ -58,7 +59,7 @@ async def test_create_provider_encrypts_tenant_secret() -> None:
 
     with (
         patch(
-            "app.modules.providers.service._should_use_vault_secret_storage",
+            "app.modules.providers.service._use_vault_for_vectors",
             return_value=False,
         ),
         patch(
@@ -70,18 +71,18 @@ async def test_create_provider_encrypts_tenant_secret() -> None:
             new_callable=AsyncMock,
         ) as mock_store_secret,
     ):
-        provider = await ProviderService.create_provider(
+        provider = await VectorRegistry.create_vector(
             db,
-            provider_name="inworld",
-            provider_category="tts",
-            api_key="tenant-tts-key",
+            vector_id="inworld",
+            vector_domain="tts",
+            auth_sig="tenant-tts-key",
             tenant_id=uuid.uuid4(),
             config={"voice_id": "Ashley"},
         )
 
     mock_encrypt.assert_called_once_with("tenant-tts-key")
     mock_store_secret.assert_not_awaited()
-    assert provider.api_key_encrypted == "encrypted-value"
+    assert provider.auth_sig_encrypted == "encrypted-value"
     assert provider.secret_ref is None
 
 
@@ -92,18 +93,18 @@ async def test_update_provider_rotates_existing_vault_secret() -> None:
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
 
-    provider = ProviderKey(
-        provider_name="groq",
-        provider_category="llm",
+    provider = BackendAccess(
+        vector_id="groq",
+        vector_category="llm",
         tenant_id=None,
-        api_key_encrypted=None,
+        auth_sig_encrypted=None,
         secret_ref="SphereVoice-provider-llm-groq-123",
         config={},
     )
 
     with (
         patch(
-            "app.modules.providers.service.ProviderService.get_provider",
+            "app.modules.providers.service.VectorRegistry.get_vector",
             new_callable=AsyncMock,
             return_value=provider,
         ),
@@ -113,16 +114,16 @@ async def test_update_provider_rotates_existing_vault_secret() -> None:
         ) as mock_store_secret,
         patch("app.modules.providers.service.encrypt") as mock_encrypt,
     ):
-        updated = await ProviderService.update_provider(
+        updated = await VectorRegistry.update_vector(
             db,
-            provider_id=provider.id,
-            api_key="rotated-key",
+            vector_sig=provider.id,
+            auth_sig="rotated-key",
         )
 
     mock_encrypt.assert_not_called()
     mock_store_secret.assert_awaited_once_with("SphereVoice-provider-llm-groq-123", "rotated-key")
     assert updated.secret_ref == "SphereVoice-provider-llm-groq-123"
-    assert updated.api_key_encrypted is None
+    assert updated.auth_sig_encrypted is None
 
 
 @pytest.mark.asyncio
@@ -132,18 +133,18 @@ async def test_delete_provider_removes_vault_secret() -> None:
     db.delete = AsyncMock()
     db.flush = AsyncMock()
 
-    provider = ProviderKey(
-        provider_name="openai",
-        provider_category="llm",
+    provider = BackendAccess(
+        vector_id="openai",
+        vector_category="llm",
         tenant_id=None,
-        api_key_encrypted=None,
+        auth_sig_encrypted=None,
         secret_ref="SphereVoice-provider-llm-openai-123",
         config={},
     )
 
     with (
         patch(
-            "app.modules.providers.service.ProviderService.get_provider",
+            "app.modules.providers.service.VectorRegistry.get_vector",
             new_callable=AsyncMock,
             return_value=provider,
         ),
@@ -152,7 +153,7 @@ async def test_delete_provider_removes_vault_secret() -> None:
             new_callable=AsyncMock,
         ) as mock_delete_secret,
     ):
-        await ProviderService.delete_provider(db, provider.id)
+        await VectorRegistry.delete_vector(db, provider.id)
 
     mock_delete_secret.assert_awaited_once_with("SphereVoice-provider-llm-openai-123")
     db.delete.assert_awaited_once_with(provider)
@@ -160,31 +161,29 @@ async def test_delete_provider_removes_vault_secret() -> None:
 
 def test_get_platform_provider_secret_maps_twilio_credentials() -> None:
     """Twilio provider secrets should be built from SID and auth token."""
-    from app.core.config import Settings
-    from app.modules.providers.service import _get_platform_provider_secret
+    from app.modules.providers.service import _get_engine_fallback_sig
 
     settings = Settings(
         TWILIO_ACCOUNT_SID="AC123",
         TWILIO_AUTH_TOKEN="token-456",
     )
 
-    secret = _get_platform_provider_secret(settings, "twilio", "telephony")
+    secret = _get_engine_fallback_sig(settings, "transport-t1", "transport")
 
     assert secret == "AC123:token-456"
 
 
 def test_get_platform_provider_secret_maps_new_tts_credentials() -> None:
     """Sarvam and Smallest AI secrets should map from settings."""
-    from app.core.config import Settings
-    from app.modules.providers.service import _get_platform_provider_secret
+    from app.modules.providers.service import _get_engine_fallback_sig
 
     settings = Settings(
         SARVAM_API_KEY="sarvam-key",
         SMALLEST_API_KEY="smallest-key",
     )
 
-    assert _get_platform_provider_secret(settings, "sarvam", "tts") == "sarvam-key"
-    assert _get_platform_provider_secret(settings, "smallest", "tts") == "smallest-key"
+    assert _get_engine_fallback_sig(settings, "synthesis-zeta", "synthesis") == "sarvam-key"
+    assert _get_engine_fallback_sig(settings, "synthesis-theta", "synthesis") == "smallest-key"
 
 
 @pytest.mark.asyncio
@@ -192,18 +191,18 @@ async def test_sync_shared_provider_secrets_from_settings_updates_only_configure
     db_session: AsyncSession,
 ) -> None:
     """Only shared providers with configured platform credentials should be backfilled."""
-    groq = ProviderKey(
-        provider_name="groq",
-        provider_category="llm",
+    groq = BackendAccess(
+        vector_id="cognitive-fast",
+        vector_category="cognitive",
         tenant_id=None,
-        api_key_encrypted="stale-groq",
+        auth_sig_encrypted="stale-groq",
         config={},
     )
-    openai = ProviderKey(
-        provider_name="openai",
-        provider_category="llm",
+    openai = BackendAccess(
+        vector_id="cognitive-core",
+        vector_category="cognitive",
         tenant_id=None,
-        api_key_encrypted="stale-openai",
+        auth_sig_encrypted="stale-openai",
         config={},
     )
     db_session.add(groq)
@@ -216,20 +215,17 @@ async def test_sync_shared_provider_secrets_from_settings_updates_only_configure
             return_value=MagicMock(
                 OPENAI_API_KEY="",
                 GROQ_API_KEY="valid-groq",
-                DEEPGRAM_API_KEY="",
-                ANTHROPIC_API_KEY="",
-                CEREBRAS_API_KEY="",
-                CARTESIA_API_KEY="",
-                ELEVENLABS_API_KEY="",
-                INWORLD_API_KEY="",
-                SARVAM_API_KEY="",
-                SMALLEST_API_KEY="",
-                TWILIO_ACCOUNT_SID="",
-                TWILIO_AUTH_TOKEN="",
             ),
         ),
         patch(
-            "app.modules.providers.service._should_use_vault_secret_storage",
+            "app.modules.providers.service._global_blueprint_templates",
+            return_value=[
+                ("cognitive-fast", "cognitive", "valid-groq", False),
+                ("cognitive-core", "cognitive", "", False),
+            ],
+        ),
+        patch(
+            "app.modules.providers.service._use_vault_for_vectors",
             return_value=True,
         ),
         patch(
@@ -237,17 +233,17 @@ async def test_sync_shared_provider_secrets_from_settings_updates_only_configure
             new_callable=AsyncMock,
         ) as mock_store_secret,
     ):
-        result = await ProviderService.sync_shared_provider_secrets_from_settings(db_session)
+        result = await VectorRegistry.backfill_global_vector_templates(db_session)
 
     assert result == {
-        "synced": ["llm:groq"],
-        "missing": ["llm:openai"],
+        "synced": ["cognitive:cognitive-fast"],
+        "missing": ["cognitive:cognitive-core"],
     }
     assert groq.secret_ref is not None
-    assert groq.secret_ref.startswith("SphereVoice-provider-llm-groq-")
-    assert groq.api_key_encrypted is None
+    assert groq.secret_ref.startswith("SphereVoice-vector-cognitive-cognitive-fast-")
+    assert groq.auth_sig_encrypted is None
     assert openai.secret_ref is None
-    assert openai.api_key_encrypted == "stale-openai"
+    assert openai.auth_sig_encrypted == "stale-openai"
     mock_store_secret.assert_awaited_once_with(groq.secret_ref, "valid-groq")
 
 
@@ -260,24 +256,17 @@ async def test_sync_shared_provider_secrets_from_settings_creates_missing_inworl
         patch(
             "app.modules.providers.service.get_settings",
             return_value=MagicMock(
-                OPENAI_API_KEY="",
-                GROQ_API_KEY="",
-                DEEPGRAM_API_KEY="",
-                ANTHROPIC_API_KEY="",
-                CEREBRAS_API_KEY="",
-                CARTESIA_API_KEY="",
-                ELEVENLABS_API_KEY="",
                 INWORLD_API_KEY="valid-inworld",
-                SARVAM_API_KEY="",
-                SMALLEST_API_KEY="",
-                TWILIO_ACCOUNT_SID="",
-                TWILIO_AUTH_TOKEN="",
-                DEFAULT_LLM_PROVIDER="groq",
-                DEFAULT_TTS_PROVIDER="inworld",
             ),
         ),
         patch(
-            "app.modules.providers.service._should_use_vault_secret_storage",
+            "app.modules.providers.service._global_blueprint_templates",
+            return_value=[
+                ("synthesis-v3", "synthesis", "valid-inworld", True),
+            ],
+        ),
+        patch(
+            "app.modules.providers.service._use_vault_for_vectors",
             return_value=True,
         ),
         patch(
@@ -285,19 +274,19 @@ async def test_sync_shared_provider_secrets_from_settings_creates_missing_inworl
             new_callable=AsyncMock,
         ) as mock_store_secret,
     ):
-        result = await ProviderService.sync_shared_provider_secrets_from_settings(db_session)
+        result = await VectorRegistry.backfill_global_vector_templates(db_session)
 
     inworld = (
         await db_session.execute(
-            select(ProviderKey).where(
-                ProviderKey.tenant_id.is_(None),
-                ProviderKey.provider_name == "inworld",
-                ProviderKey.provider_category == "tts",
+            select(BackendAccess).where(
+                BackendAccess.tenant_id.is_(None),
+                BackendAccess.vector_id == "synthesis-v3",
+                BackendAccess.vector_category == "synthesis",
             )
         )
     ).scalar_one()
 
-    assert "tts:inworld" in result["synced"]
+    assert "synthesis:synthesis-v3" in result["synced"]
     assert result["missing"] == []
     assert inworld.secret_ref is not None
     assert inworld.is_default is True

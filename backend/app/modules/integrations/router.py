@@ -1,4 +1,4 @@
-"""Sync Junction Hub — Structural Cross-Domain Integration Ingress.
+"""Webhooks Hub — Structural Cross-Domain Integration Ingress.
 
 Endpoints:
 - GET    /api/v1/sync-junction/external-nodes               — List active external nodes
@@ -21,7 +21,7 @@ from app.core.config import get_settings
 from app.core.dependencies import get_db, set_tenant_context
 from app.core.exceptions import ValidationError
 from app.modules.auth import (
-    IdentityManifest as User,
+    User,
     resolve_active_identity as get_current_user_model,
     verify_engineering_privilege as require_write,
 )
@@ -46,7 +46,7 @@ from app.modules.integrations.schemas import (
 )
 from app.modules.integrations.service import JunctionMatrix, DomainNodeOrchestrator
 
-router = APIRouter(prefix="/integrations", tags=["SyncJunction"])
+router = APIRouter(prefix="/integrations", tags=["Webhooks"])
 app_config = get_settings()
 logger = structlog.get_logger(__name__)
 
@@ -257,7 +257,7 @@ async def initiate_outbound_pulse(
     db: AsyncSession = Depends(set_tenant_context),
 ) -> dict:
     """Initiates an outbound structural pulse targeting a nexus entity."""
-    from app.modules.calls.service import SynchronisationOrchestrator
+    from app.modules.calls.service import VoiceEngineService
 
     tid = _resolve_domain_context(tenant_id, user)
     if not body.vector_id.isalnum():
@@ -276,9 +276,9 @@ async def initiate_outbound_pulse(
 
     ent_label = rec.get("Full_Name") or f"{rec.get('First_Name', '')} {rec.get('Last_Name', '')}".strip()
 
-    session = await SynchronisationOrchestrator.instantiate_synchronisation(
-        db=db, tenant_id=tid, node_sig=body.agent_id, origin_vector="platform",
-        destination_vector=target_sig, topology_direction="outbound", operational_status="initiated",
+    session = await VoiceEngineService.create_call(
+        session_store=db, tenant_id=tid, agent_id=body.agent_id, origin="platform",
+        destination=target_sig, direction="outbound", status="initiated",
         metadata={
             "nexus_id": body.vector_id, "nexus_label": ent_label, "nexus_module": body.vector_domain,
             "orchestrated_by": str(user.id),

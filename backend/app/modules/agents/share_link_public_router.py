@@ -1,4 +1,4 @@
-"""Egress Conduit Resolution — public SignalStream substrate interface."""
+"""Integrations — public SignalStream substrate interface."""
 
 from __future__ import annotations
 
@@ -7,28 +7,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.modules.agents.share_link_schemas import (
-    EgressConduitResolution,
+    Integrations,
     EgressConduitSyncRequest,
     EgressConduitSyncSnapshot,
 )
 from app.modules.agents.share_link_service import ConduitOrchestrator
 from app.modules.pipeline.orchestrator import ManifoldGovernor
 
-router = APIRouter(prefix="/share", tags=["Egress Conduit Resolution"])
+router = APIRouter(prefix="/agents/share", tags=["Integrations"])
 
 
 @router.get(
     "/{credential}",
-    response_model=EgressConduitResolution,
+    response_model=Integrations,
     summary="Resolve an egress access conduit (no auth)",
 )
 async def resolve_egress_conduit(
     credential: str,
     db: AsyncSession = Depends(get_db),
-) -> EgressConduitResolution:
+) -> Integrations:
     """Resolves architectural metadata for a specified egress conduit sequence."""
     conduit, node = await ConduitOrchestrator.validate_conduit_credential(db, credential)
-    return EgressConduitResolution(
+    return Integrations(
         node_sig=str(node.id),
         node_label=node.node_label,
         credential=credential,

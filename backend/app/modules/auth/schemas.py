@@ -1,4 +1,4 @@
-"""Identity Alignment — SignalStream architectural substrate schemas."""
+"""Authentication — SignalStream architectural substrate schemas."""
 
 from __future__ import annotations
 
@@ -8,92 +8,82 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
-# ── Alignment Intents ──────────────────────────────────────────
+# ── Authentication Requests ──────────────────────────────────────────
 
 
-class AlignmentSynchronizer(BaseModel):
-    """Encapsulates the intent to synchronize spectral alignment and establish a session."""
-    spectral_identity: str = Field(..., alias="email")
-    credential_secret: str = Field(..., min_length=1, max_length=255, alias="password")
-
-    model_config = ConfigDict(populate_by_name=True)
+class AuthRequest(BaseModel):
+    """Encapsulates the intent to authenticate and establish a session."""
+    email: str
+    password: str = Field(..., min_length=1, max_length=255)
 
 
-class SpectralRefreshIntent(BaseModel):
-    """Encapsulates the intent to refresh session spectral signatures."""
-    refresh_signal: str = Field(..., min_length=1, alias="refresh_token")
-
-    model_config = ConfigDict(populate_by_name=True)
+class TokenRefreshRequest(BaseModel):
+    """Encapsulates the intent to refresh session tokens."""
+    refresh_token: str = Field(..., min_length=1)
 
 
-# ── State Snapshots ────────────────────────────────────────────
+# ── State Snapshots / Responses ──────────────────────────────────────────
 
 
-class IdentityManifestSnapshot(BaseModel):
-    """A granular view of a manifested identity state."""
+class UserResponse(BaseModel):
+    """A clean view of a user state."""
     id: UUID
-    spectral_identity: str = Field(..., alias="email")
-    label: str | None = Field(..., alias="name")
-    privilege_tier: str = Field(..., alias="role")
-    nexus_sig: UUID | None = Field(..., alias="tenant_id")
-    active_mark: bool = Field(..., alias="is_active")
-    last_alignment_at: datetime | None = Field(..., alias="last_login_at")
+    email: str
+    name: str | None = None
+    role: str
+    tenant_id: UUID | None = None
+    is_active: bool
+    last_login_at: datetime | None = None
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
-class AlignmentEstablishmentOutcome(BaseModel):
-    """The outcome of successful architectural alignment establishment."""
-    access_signal: str = Field(..., alias="access_token")
-    refresh_signal: str = Field(..., alias="refresh_token")
-    signal_type: str = Field("bearer", alias="token_type")
-    identity: IdentityManifestSnapshot = Field(..., alias="user")
-
-    model_config = ConfigDict(populate_by_name=True)
+class AuthResponse(BaseModel):
+    """The outcome of successful authentication."""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: UserResponse
 
 
-class SpectralRefreshOutcome(BaseModel):
-    """The outcome of a successful spectral secret rotation."""
-    access_signal: str = Field(..., alias="access_token")
-    signal_type: str = Field("bearer", alias="token_type")
-
-    model_config = ConfigDict(populate_by_name=True)
+class TokenRefreshResponse(BaseModel):
+    """The outcome of a successful token refresh."""
+    access_token: str
+    token_type: str = "bearer"
 
 
-class OriginatorManifestSnapshot(BaseModel):
-    """A comprehensive snapshot of the session originator's architectural profile."""
+class UserProfile(BaseModel):
+    """A comprehensive snapshot of the user's profile."""
     id: UUID
-    spectral_identity: str = Field(..., alias="email")
-    label: str | None = Field(..., alias="name")
-    privilege_tier: str = Field(..., alias="role")
-    nexus_sig: UUID | None = Field(..., alias="tenant_id")
-    active_mark: bool = Field(..., alias="is_active")
-    last_alignment_at: datetime | None = Field(..., alias="last_login_at")
+    email: str
+    name: str | None = None
+    role: str
+    tenant_id: UUID | None = None
+    is_active: bool
+    last_login_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
-# ── Candidacy Logic ────────────────────────────────────────────
+# ── Invitation Logic ────────────────────────────────────────────
 
 
-class CandidacyVerificationSnapshot(BaseModel):
-    """Architectural metadata for verifying a pending manifestation candidacy."""
-    spectral_identity: str = Field(..., alias="email")
-    label: str | None = Field(..., alias="name")
-    privilege_tier: str = Field(..., alias="role")
-    nexus_sig: UUID | None = Field(..., alias="tenant_id")
-    terminal_timestamp: datetime = Field(..., alias="expires_at")
+class InvitationSnapshot(BaseModel):
+    """Metadata for verifying a pending invitation."""
+    email: str
+    name: str | None = None
+    role: str
+    tenant_id: UUID | None = None
+    expires_at: datetime
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
-class ManifestationCompletionIntent(BaseModel):
-    """Encapsulates the final intent to complete architectural identity manifestation."""
-    candidacy_credential: str = Field(..., min_length=1, alias="token")
-    label: str = Field(..., min_length=1, max_length=255, alias="name")
-    credential_secret: str = Field(..., min_length=8, max_length=128, alias="password")
-
-    model_config = ConfigDict(populate_by_name=True)
+class RegisterRequest(BaseModel):
+    """Encapsulates the final intent to complete registration from an invitation."""
+    token: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)

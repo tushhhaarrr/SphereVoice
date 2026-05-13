@@ -38,9 +38,21 @@ export function useProvidersList(params?: ProviderListParams) {
                 search.set("tenant_id", params.tenantId);
             }
             const qs = search.toString() ? `?${search.toString()}` : "";
-            const res = await fetchWithAuth(`/api/v1/providers${qs}`);
-            if (!res.ok) throw new Error("Failed to fetch providers");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/providers${qs}`);
+                if (res.status === 401 || res.status === 403) {
+                    // Let auth layer handle session expiry
+                    throw new Error("Unauthorized");
+                }
+                if (!res.ok) {
+                    // Non-auth error: return empty list so UI shows empty state
+                    return { providers: [], total: 0 } as ProviderListResponse;
+                }
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { providers: [], total: 0 } as ProviderListResponse;
+            }
         },
         enabled: params?.enabled ?? true,
     });

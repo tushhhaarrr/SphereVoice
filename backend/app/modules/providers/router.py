@@ -1,4 +1,4 @@
-"""Resolution Vectors Hub — Architectural Ingress/Egress Management.
+"""Knowledge Base Hub — Architectural Ingress/Egress Management.
 
 Endpoints:
 - GET    /api/v1/resolution-vectors              — List active vectors
@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_db, set_tenant_context
 from app.modules.analytics import EchoLogOrchestrator as AuditService
 from app.modules.auth import (
-    IdentityManifest,
+    User,
     resolve_active_identity,
     verify_substrate_privilege as require_write,
 )
@@ -38,7 +38,16 @@ from app.modules.providers.naming import (
 )
 from app.modules.providers.service import VectorRegistry
 
-router = APIRouter(prefix="/providers", tags=["ResolutionVectors"])
+from app.modules.providers.registry import ProviderRegistry, ProviderCapability
+
+router = APIRouter(prefix="/providers", tags=["Providers"])
+
+@router.get("/capabilities", response_model=list[ProviderCapability])
+async def list_provider_capabilities(
+    user: User = Depends(resolve_active_identity),
+):
+    """Returns all supported providers and their active status via environment discovery."""
+    return ProviderRegistry.list_providers()
 
 
 def _to_vector_descriptor(vector: object) -> VectorDescriptor:
@@ -56,11 +65,11 @@ async def list_active_vectors(
     domain: str | None = Query(None, alias="category", description="Filter by domain: perception, cognitive, synthesis, transport"),
     is_active: bool | None = Query(None, description="Filter by active status"),
     tenant_id: UUID | None = Query(None, description="Administrative tenant scope filter"),
-    user: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(resolve_active_identity),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> VectorRegistryCatalog:
     """Lists all resolution vectors authorized for the current session context."""
-    effective_tenant_id = user.nexus_sig if user.privilege_tier != "nexus_admin" else tenant_id
+    effective_tenant_id = user.tenant_id if user.role != "nexus_admin" else tenant_id
     vectors, total = await VectorRegistry.list_vectors(
         db, tenant_id=effective_tenant_id, category=domain, is_active=is_active
     )
@@ -74,23 +83,23 @@ async def list_active_vectors(
 async def provision_new_vector(
     body: VectorProvisionRequest,
     request: Request,
-    user: IdentityManifest = Depends(require_write),
+    user: User = Depends(require_write),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> VectorDescriptor:
     """Provisions a new resolution vector node. obfuscates access signatures before storage."""
     from app.core.exceptions import ForbiddenError
 
-    if body.is_default and user.privilege_tier != "nexus_admin":
+    if body.is_default and user.role != "nexus_admin":
         raise ForbiddenError("Higher authorization level required to provision system-wide fallback vectors")
 
     effective_tenant_id = None
     if not body.is_default:
         if body.tenant_id is not None:
-            if user.privilege_tier != "nexus_admin" and body.tenant_id != user.nexus_sig:
+            if user.role != "nexus_admin" and body.tenant_id != user.tenant_id:
                 raise ForbiddenError("Context mismatch: cannot provision vectors for external domains")
             effective_tenant_id = body.tenant_id
-        elif user.nexus_sig is not None:
-            effective_tenant_id = user.nexus_sig
+        elif user.tenant_id is not None:
+            effective_tenant_id = user.tenant_id
         else:
             raise ForbiddenError("Domain context required for non-default vector provisioning")
 
@@ -126,7 +135,7 @@ async def provision_new_vector(
 @router.get("/{vector_sig}", response_model=VectorDescriptor)
 async def inspect_vector_node(
     vector_sig: UUID,
-    user: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(resolve_active_identity),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> VectorDescriptor:
     """Retrieves detailed architectural characteristics of a specific vector node."""
@@ -139,7 +148,7 @@ async def modify_vector_params(
     vector_sig: UUID,
     body: VectorModificationRequest,
     request: Request,
-    user: IdentityManifest = Depends(require_write),
+    user: User = Depends(require_write),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> VectorDescriptor:
     """Modifies an existing resolution vector. Re-obfuscates signatures if updated."""
@@ -157,7 +166,7 @@ async def modify_vector_params(
     await AuditService.log(
         db,
         user_id=user.id,
-        tenant_id=user.nexus_sig,
+        tenant_id=user.tenant_id,
         action="modify",
         resource_type="resolution_vector",
         resource_id=vector.id,
@@ -173,14 +182,14 @@ async def modify_vector_params(
 async def decommission_vector(
     vector_sig: UUID,
     request: Request,
-    user: IdentityManifest = Depends(require_write),
+    user: User = Depends(require_write),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> Response:
     """Decommissions a resolution vector, revoking its participation in the architectural nexus."""
     await AuditService.log(
         db,
         user_id=user.id,
-        tenant_id=user.nexus_sig,
+        tenant_id=user.tenant_id,
         action="decommission",
         resource_type="resolution_vector",
         resource_id=vector_sig,
@@ -194,7 +203,7 @@ async def decommission_vector(
 @router.post("/{vector_sig}/audit", response_model=VectorConnectivityAudit)
 async def audit_vector_connectivity(
     vector_sig: UUID,
-    user: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(resolve_active_identity),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> VectorConnectivityAudit:
     """Performs a diagnostic audit of a vector node's upstream connectivity."""
@@ -206,7 +215,7 @@ async def audit_vector_connectivity(
 async def synchronize_node_catalog(
     vector_sig: UUID,
     request: Request,
-    user: IdentityManifest = Depends(require_write),
+    user: User = Depends(require_write),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> VectorDescriptor:
     """Synchronizes a vector node's localized capability catalog (models/weights/profiles)."""
@@ -215,7 +224,7 @@ async def synchronize_node_catalog(
     await AuditService.log(
         db,
         user_id=user.id,
-        tenant_id=user.nexus_sig,
+        tenant_id=user.tenant_id,
         action="synchronize",
         resource_type="resolution_vector",
         resource_id=vector.id,
@@ -233,7 +242,7 @@ async def synchronize_node_catalog(
 @router.post("/transport/secondary", status_code=201)
 async def provision_secondary_transport(
     request: Request,
-    user: IdentityManifest = Depends(require_write),
+    user: User = Depends(require_write),
     db: AsyncSession = Depends(set_tenant_context),
 ) -> VectorDescriptor:
     """Provisions a secondary transport cell for the current domain.
@@ -243,30 +252,30 @@ async def provision_secondary_transport(
     """
     from app.modules.providers.plivo_subaccounts import PlivoSubAccountService
 
-    if not user.nexus_sig:
+    if not user.tenant_id:
         from app.core.exceptions import ValidationError
         raise ValidationError(message="Domain context required for secondary transport provisioning")
 
     domain_label = "Domain"
     try:
-        from app.modules.auth.models import NexusRegistry
+        from app.modules.auth.models import Tenant
         from sqlalchemy import select as sa_select
-        res = await db.execute(sa_select(NexusRegistry).where(NexusRegistry.id == user.nexus_sig))
+        res = await db.execute(sa_select(Tenant).where(Tenant.id == user.tenant_id))
         nexus = res.scalar_one_or_none()
-        if nexus: domain_label = nexus.label or "Domain"
+        if nexus: domain_label = nexus.name or "Domain"
     except:
         pass
 
     vector = await PlivoSubAccountService.create_subaccount(
         db=db,
-        tenant_id=user.nexus_sig,
+        tenant_id=user.tenant_id,
         tenant_name=domain_label,
     )
 
     await AuditService.log(
         db,
         user_id=user.id,
-        tenant_id=user.nexus_sig,
+        tenant_id=user.tenant_id,
         action="provision",
         resource_type="secondary_transport",
         resource_id=vector.id,

@@ -22,9 +22,27 @@ export function useAgents(params?: { page?: number; limit?: number; status?: str
     return useQuery<AgentListResponse>({
         queryKey: ["agents", params],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/v1/agents${qs}`);
-            if (!res.ok) throw new Error("Failed to fetch agents");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/agents${qs}`);
+                if (res.status === 401 || res.status === 403) {
+                    throw new Error("Unauthorized");
+                }
+                if (!res.ok) {
+                    return { agents: [], total: 0, page: 1, limit: 50 } as AgentListResponse;
+                }
+                const json = await res.json();
+                // Normalize: backend uses `nodes` + `total_count`, components use `agents` + `total`
+                if (json.nodes !== undefined && json.agents === undefined) {
+                    json.agents = json.nodes;
+                    json.total = json.total_count ?? json.nodes.length;
+                    json.page = json.cursor_position ?? 1;
+                    json.limit = json.limit_bound ?? 50;
+                }
+                return json as AgentListResponse;
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { agents: [], total: 0, page: 1, limit: 50 } as AgentListResponse;
+            }
         },
     });
 }

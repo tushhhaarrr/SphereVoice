@@ -39,9 +39,15 @@ export function useKnowledgeBases(params?: {
     return useQuery<KnowledgeBaseListResponse>({
         queryKey: ["knowledge-bases", params],
         queryFn: async () => {
-            const res = await fetchWithAuth(`/api/v1/knowledge-bases${qs}`);
-            if (!res.ok) throw new Error("Failed to fetch knowledge bases");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/knowledge-bases${qs}`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { items: [], total: 0, page: 1, page_size: 20 } as KnowledgeBaseListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { items: [], total: 0, page: 1, page_size: 20 } as KnowledgeBaseListResponse;
+            }
         },
         enabled: params?.enabled ?? true,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,11 +136,15 @@ export function useKBDocuments(kbId: string) {
     return useQuery<DocumentListResponse>({
         queryKey: ["knowledge-bases", kbId, "documents"],
         queryFn: async () => {
-            const res = await fetchWithAuth(
-                `/api/v1/knowledge-bases/${kbId}/documents`
-            );
-            if (!res.ok) throw new Error("Failed to fetch documents");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/knowledge-bases/${kbId}/documents`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return { items: [], total: 0 } as DocumentListResponse;
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return { items: [], total: 0 } as DocumentListResponse;
+            }
         },
         enabled: !!kbId,
     });
@@ -267,11 +277,15 @@ export function useAgentKnowledgeBases(agentId: string) {
     return useQuery<AgentKBAttachment[]>({
         queryKey: ["agents", agentId, "knowledge-bases"],
         queryFn: async () => {
-            const res = await fetchWithAuth(
-                `/api/v1/agents/${agentId}/knowledge-bases`
-            );
-            if (!res.ok) throw new Error("Failed to fetch agent knowledge bases");
-            return res.json();
+            try {
+                const res = await fetchWithAuth(`/api/v1/agents/${agentId}/knowledge-bases`);
+                if (res.status === 401 || res.status === 403) throw new Error("Unauthorized");
+                if (!res.ok) return [] as AgentKBAttachment[];
+                return res.json();
+            } catch (err) {
+                if ((err as Error).message === "Unauthorized") throw err;
+                return [] as AgentKBAttachment[];
+            }
         },
         enabled: !!agentId,
     });

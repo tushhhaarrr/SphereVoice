@@ -1,5 +1,5 @@
-/**
- * Call History page — list calls with filters, search, export, and detail modal.
+﻿/**
+ * Call History page â€” list calls with filters, search, export, and detail modal.
  */
 
 "use client";
@@ -29,7 +29,7 @@ import {
   type CallListParams,
 } from "@/modules/calls";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998").replace(/\/api\/v1\/?$/, "");
 
 export default function CallsPage() {
   const [params, setParams] = useState<CallListParams>({
@@ -166,3 +166,4 @@ export default function CallsPage() {
     </div>
   );
 }
+

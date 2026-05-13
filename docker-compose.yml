@@ -48,6 +48,9 @@ services:
       LIVEKIT_URL: ws://localhost:7880
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: devsecret
+      DEMO_MODE: "true"
+      AUTO_SEED_PROVIDERS: "true"
+      REQUIRE_API_KEYS: "false"
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,4 +1,4 @@
-"""Signal Synchronisation — SignalStream architectural substrate service layer."""
+"""Voice Engine — SignalStream architectural substrate service layer."""
 
 from __future__ import annotations
 
@@ -9,51 +9,51 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError as RegistryMissing
-from app.modules.calls.models import SignalSynchronisation, SynchronisationTelemetry
+from app.modules.calls.models import VoiceEngine, SynchronisationTelemetry
 
 
-class SynchronisationOrchestrator:
-    """Orchestrates low-level persistence operations for synchronous signal synchronisations."""
+class VoiceEngineService:
+    """Orchestrates persistence operations for calls (Voice Engine)."""
 
     @staticmethod
-    async def resolve_synchronisation_manifest(
+    async def get_call(
         session_store: AsyncSession,
-        sync_sig: UUID,
-    ) -> SignalSynchronisation:
-        """Retrieves a specific synchronisation manifest from the substrate persistence layer."""
+        call_id: UUID,
+    ) -> VoiceEngine:
+        """Retrieves a specific call record."""
         fetch_op = await session_store.execute(
-            select(SignalSynchronisation).where(SignalSynchronisation.id == sync_sig)
+            select(VoiceEngine).where(VoiceEngine.id == call_id)
         )
         manifest = fetch_op.scalar_one_or_none()
         if manifest is None:
-            raise RegistryMissing("SignalSynchronisation", str(sync_sig))
+            raise RegistryMissing("VoiceEngine", str(call_id))
         return manifest
 
     @staticmethod
-    async def initiate_synchronisation_record(
+    async def create_call(
         session_store: AsyncSession,
-        nexus_sig: UUID,
-        node_sig: UUID,
-        origin_vector: str,
-        destination_vector: str,
-        topology_direction: str,
-        initial_phase: str = "ringing",
-        ingress_conduit_sig: UUID | None = None,
-        architectural_metadata: dict[str, object] | None = None,
-        dynamic_nodal_vectors: dict[str, object] | None = None,
-    ) -> SignalSynchronisation:
-        """Provisions a new synchronisation record within the architectural substrate."""
-        record = SignalSynchronisation(
-            tenant_id=nexus_sig,
-            node_sig=node_sig,
-            ingress_conduit_sig=ingress_conduit_sig,
-            origin_vector=origin_vector,
-            destination_vector=destination_vector,
-            topology_direction=topology_direction,
-            operational_status=initial_phase,
+        tenant_id: UUID,
+        agent_id: UUID,
+        from_number: str,
+        to_number: str,
+        direction: str,
+        status: str = "ringing",
+        phone_number_id: UUID | None = None,
+        metadata: dict[str, object] | None = None,
+        dynamic_variables: dict[str, object] | None = None,
+    ) -> VoiceEngine:
+        """Provisions a new call record."""
+        record = VoiceEngine(
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            phone_number_id=phone_number_id,
+            origin=from_number,
+            destination=to_number,
+            direction=direction,
+            status=status,
             initiation_timestamp=datetime.now(UTC),
-            architectural_metadata=architectural_metadata or {},
-            dynamic_nodal_vectors=dynamic_nodal_vectors or {},
+            metadata=metadata or {},
+            dynamic_nodal_vectors=dynamic_variables or {},
         )
         session_store.add(record)
         await session_store.flush()
@@ -61,18 +61,18 @@ class SynchronisationOrchestrator:
         return record
 
     @staticmethod
-    async def record_telemetry_event(
+    async def create_telemetry_event(
         session_store: AsyncSession,
-        sync_sig: UUID,
-        event_class: str,
-        telemetry_payload: dict[str, object],
+        call_id: UUID,
+        event_type: str,
+        payload: dict[str, object],
         ts: datetime | None = None,
     ) -> SynchronisationTelemetry:
-        """Records a specific telemetry event within a synchronisation's architectural lifecycle."""
+        """Records a specific telemetry event for a call."""
         telemetry_entry = SynchronisationTelemetry(
-            sync_sig=sync_sig,
-            event_class=event_class,
-            telemetry_payload=telemetry_payload,
+            voice_engine_id=call_id,
+            event_type=event_type,
+            payload=payload,
         )
         if ts:
             telemetry_entry.timestamp = ts
@@ -82,32 +82,32 @@ class SynchronisationOrchestrator:
         return telemetry_entry
 
     @staticmethod
-    async def aggregate_synchronisation_chronicles(
+    async def list_calls(
         session_store: AsyncSession,
-        nexus_sig: UUID | None = None,
-        node_sig: UUID | None = None,
-        operational_status: str | None = None,
-        topology_direction: str | None = None,
-        initiation_horizon_start: datetime | None = None,
-        initiation_horizon_end: datetime | None = None,
+        tenant_id: UUID | None = None,
+        agent_id: UUID | None = None,
+        status: str | None = None,
+        direction: str | None = None,
+        started_after: datetime | None = None,
+        started_before: datetime | None = None,
         search_query: str | None = None,
         page: int = 1,
         limit: int = 50,
-    ) -> tuple[list[SignalSynchronisation], int]:
-        """Queries and aggregates historical synchronisation chronicles based on provided criteria."""
-        base_op = select(SignalSynchronisation)
+    ) -> tuple[list[VoiceEngine], int]:
+        """Queries and aggregates historical call records."""
+        base_op = select(VoiceEngine)
 
-        if nexus_sig: base_op = base_op.where(SignalSynchronisation.tenant_id == nexus_sig)
-        if node_sig: base_op = base_op.where(SignalSynchronisation.node_sig == node_sig)
-        if operational_status: base_op = base_op.where(SignalSynchronisation.operational_status == operational_status)
-        if topology_direction: base_op = base_op.where(SignalSynchronisation.topology_direction == topology_direction)
-        if initiation_horizon_start: base_op = base_op.where(SignalSynchronisation.initiation_timestamp >= initiation_horizon_start)
-        if initiation_horizon_end: base_op = base_op.where(SignalSynchronisation.initiation_timestamp <= initiation_horizon_end)
+        if tenant_id: base_op = base_op.where(VoiceEngine.tenant_id == tenant_id)
+        if agent_id: base_op = base_op.where(VoiceEngine.agent_id == agent_id)
+        if status: base_op = base_op.where(VoiceEngine.status == status)
+        if direction: base_op = base_op.where(VoiceEngine.direction == direction)
+        if started_after: base_op = base_op.where(VoiceEngine.initiation_timestamp >= started_after)
+        if started_before: base_op = base_op.where(VoiceEngine.initiation_timestamp <= started_before)
         if search_query and search_query.strip():
             wildcard = f"%{search_query.strip()}%"
             base_op = base_op.where(
-                SignalSynchronisation.origin_vector.ilike(wildcard) | 
-                SignalSynchronisation.destination_vector.ilike(wildcard)
+                VoiceEngine.origin.ilike(wildcard) | 
+                VoiceEngine.destination.ilike(wildcard)
             )
 
         count_op = select(func.count()).select_from(base_op.subquery())
@@ -115,37 +115,44 @@ class SynchronisationOrchestrator:
 
         cursor = (page - 1) * limit
         results = await session_store.execute(
-            base_op.order_by(SignalSynchronisation.initiation_timestamp.desc()).offset(cursor).limit(limit)
+            base_op.order_by(VoiceEngine.initiation_timestamp.desc()).offset(cursor).limit(limit)
         )
         return list(results.scalars().all()), total_clusters
 
     @staticmethod
-    async def synchronize_operational_state(
+    async def update_call(
         session_store: AsyncSession,
-        sync_sig: UUID,
+        call_id: UUID,
         **adjustments: object,
-    ) -> SignalSynchronisation:
-        """Applies operational state adjustments to an active or historical synchronisation manifest."""
-        manifest = await SynchronisationOrchestrator.resolve_synchronisation_manifest(session_store, sync_sig)
+    ) -> VoiceEngine:
+        """Applies state adjustments to a call record."""
+        manifest = await VoiceEngineService.get_call(session_store, call_id)
         
-        # Mapping architectural adjustment keys to substrate persistence fields
+        # Mapping clean keys to refactor Python attribute names
+        # Support both new and legacy keys for compatibility
         persistence_map = {
-            "phase": "operational_status", 
-            "quiescence": "termination_timestamp", 
-            "duration_delta": "duration_interval",
-            "termination_vector": "termination_logic", 
-            "archive_url": "archival_url",          # Rebranded field
-            "chronicle": "lexical_chronicle",       # Rebranded field
-            "turn_density": "vector_cycle_count",
-            "telemetry_blob": "abstracted_manifest", 
-            "reconciliation_ts": "abstraction_finalised_at",
-            "perception_overhead": "ingress_conversion_overhead", 
-            "cognitive_overhead": "inference_overhead",
-            "synthesis_overhead": "egress_synthesis_overhead", 
-            "substrate_overhead": "transport_overhead",
-            "aggregate_overhead": "aggregate_overhead",
+            "status": "status",
+            "phase": "status",  # legacy
+            "ended_at": "termination_timestamp",
+            "quiescence": "termination_timestamp",  # legacy
+            "duration": "duration",
+            "duration_delta": "duration",  # legacy
+            "disposition": "disposition",
+            "termination_vector": "disposition",  # legacy
+            "recording_url": "archival_url",
+            "archive_url": "archival_url",  # legacy
+            "transcript": "transcript",
+            "chronicle": "transcript",  # legacy
+            "turns_count": "vector_cycle_count",
+            "turn_density": "vector_cycle_count",  # legacy
+            "summary": "summary",
+            "telemetry_blob": "summary",  # legacy
+            "summary_finalized_at": "summary_finalized_at",
+            "reconciliation_ts": "summary_finalized_at",  # legacy
+            "avg_latency_ms": "avg_transmission_delay",
             "usage_metrics": "utilization_matrix",
-            "metadata_": "architectural_metadata",
+            "metadata": "metadata",
+            "metadata_": "metadata",  # legacy
             "dynamic_variables": "dynamic_nodal_vectors",
         }
 
@@ -159,12 +166,12 @@ class SynchronisationOrchestrator:
         return manifest
 
     @staticmethod
-    async def retrieve_telemetry_stream(
+    async def get_telemetry_stream(
         session_store: AsyncSession,
-        sync_sig: UUID,
+        call_id: UUID,
     ) -> list[SynchronisationTelemetry]:
-        """Fetches the complete telemetry stream for a given synchronisation cycle."""
+        """Fetches the complete telemetry stream for a given call."""
         fetch_op = await session_store.execute(
-            select(SynchronisationTelemetry).where(SynchronisationTelemetry.sync_sig == sync_sig).order_by(SynchronisationTelemetry.timestamp.asc())
+            select(SynchronisationTelemetry).where(SynchronisationTelemetry.voice_engine_id == call_id).order_by(SynchronisationTelemetry.timestamp.asc())
         )
         return list(fetch_op.scalars().all())

@@ -1,4 +1,4 @@
-"""Signal Propagation Campaigns — Architectural business logic substrate."""
+"""Campaigns Campaigns — Architectural business logic substrate."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, ValidationError
-from app.modules.campaigns.models import SignalPropagationCampaign, PropagationTarget
+from app.modules.campaigns.models import CampaignsCampaign, PropagationTarget
 
 logger = structlog.get_logger(__name__)
 
 
-class SignalPropagationOrchestrator:
-    """Service layer for SignalPropagationCampaign and PropagationTarget lifecycle management."""
+class CampaignsOrchestrator:
+    """Service layer for CampaignsCampaign and PropagationTarget lifecycle management."""
 
     @staticmethod
     async def aggregate_propagation_campaigns(
@@ -26,13 +26,13 @@ class SignalPropagationOrchestrator:
         skip: int = 0, 
         limit: int = 100, 
         status: str | None = None,
-    ) -> tuple[list[SignalPropagationCampaign], int]:
-        count_q = select(func.count()).select_from(SignalPropagationCampaign).where(SignalPropagationCampaign.tenant_id == tenant_id)
-        rows_q = select(SignalPropagationCampaign).where(SignalPropagationCampaign.tenant_id == tenant_id).order_by(SignalPropagationCampaign.created_at.desc())
+    ) -> tuple[list[CampaignsCampaign], int]:
+        count_q = select(func.count()).select_from(CampaignsCampaign).where(CampaignsCampaign.tenant_id == tenant_id)
+        rows_q = select(CampaignsCampaign).where(CampaignsCampaign.tenant_id == tenant_id).order_by(CampaignsCampaign.created_at.desc())
         
         if status:
-            count_q = count_q.where(SignalPropagationCampaign.operational_status == status)
-            rows_q = rows_q.where(SignalPropagationCampaign.operational_status == status)
+            count_q = count_q.where(CampaignsCampaign.operational_status == status)
+            rows_q = rows_q.where(CampaignsCampaign.operational_status == status)
             
         total = (await db.execute(count_q)).scalar_one()
         rows = (await db.execute(rows_q.offset(skip).limit(limit))).scalars().all()
@@ -43,15 +43,15 @@ class SignalPropagationOrchestrator:
         db: AsyncSession, 
         campaign_id: uuid.UUID, 
         tenant_id: uuid.UUID | None = None
-    ) -> SignalPropagationCampaign:
+    ) -> CampaignsCampaign:
         """Resolve a propagation campaign by identifier."""
-        q = select(SignalPropagationCampaign).where(SignalPropagationCampaign.id == campaign_id)
+        q = select(CampaignsCampaign).where(CampaignsCampaign.id == campaign_id)
         if tenant_id:
-            q = q.where(SignalPropagationCampaign.tenant_id == tenant_id)
+            q = q.where(CampaignsCampaign.tenant_id == tenant_id)
             
         row = (await db.execute(q)).scalar_one_or_none()
         if not row:
-            raise NotFoundError("SignalPropagationCampaign", str(campaign_id))
+            raise NotFoundError("CampaignsCampaign", str(campaign_id))
         return row
 
     @staticmethod
@@ -60,9 +60,9 @@ class SignalPropagationOrchestrator:
         tenant_id: uuid.UUID, 
         data: Any, 
         created_by: uuid.UUID | None = None
-    ) -> SignalPropagationCampaign:
+    ) -> CampaignsCampaign:
         """Provision a new signal propagation campaign."""
-        campaign = SignalPropagationCampaign(
+        campaign = CampaignsCampaign(
             tenant_id=tenant_id,
             name=data.name,
             description=data.description,
@@ -87,9 +87,9 @@ class SignalPropagationOrchestrator:
         db: AsyncSession, 
         campaign_id: uuid.UUID, 
         tenant_id: uuid.UUID
-    ) -> SignalPropagationCampaign:
+    ) -> CampaignsCampaign:
         """Activate a propagation campaign, transitioning it to the 'running' state."""
-        campaign = await SignalPropagationOrchestrator.get_campaign(db, campaign_id, tenant_id)
+        campaign = await CampaignsOrchestrator.get_campaign(db, campaign_id, tenant_id)
         if campaign.operational_status not in ("draft", "scheduled", "paused"):
             raise ValidationError(f"Cannot activate propagation campaign in state '{campaign.operational_status}'.")
         
@@ -100,7 +100,7 @@ class SignalPropagationOrchestrator:
     @staticmethod
     async def complete_campaign(db: AsyncSession, campaign_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         """Finalize a propagation campaign."""
-        campaign = await SignalPropagationOrchestrator.get_campaign(db, campaign_id, tenant_id)
+        campaign = await CampaignsOrchestrator.get_campaign(db, campaign_id, tenant_id)
         campaign.operational_status = "completed"
         await db.flush()
 
@@ -176,12 +176,12 @@ class SignalPropagationOrchestrator:
     ) -> None:
         """Accrue propagation benchmarks for a campaign."""
         await db.execute(
-            update(SignalPropagationCampaign)
-            .where(SignalPropagationCampaign.id == campaign_id)
+            update(CampaignsCampaign)
+            .where(CampaignsCampaign.id == campaign_id)
             .values(
-                finalised_signals=SignalPropagationCampaign.finalised_signals + completed,
-                successful_signals=SignalPropagationCampaign.successful_signals + successful,
-                voided_signals=SignalPropagationCampaign.voided_signals + failed,
+                finalised_signals=CampaignsCampaign.finalised_signals + completed,
+                successful_signals=CampaignsCampaign.successful_signals + successful,
+                voided_signals=CampaignsCampaign.voided_signals + failed,
             )
         )
         await db.flush()

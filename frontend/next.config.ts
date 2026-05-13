@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/v1/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998"}/api/v1/:path*`,
+        destination: `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:2998").replace(/\/api\/v1\/?$/, "")}/api/v1/:path*`,
       },
     ];
   },

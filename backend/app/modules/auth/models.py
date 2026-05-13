@@ -1,4 +1,4 @@
-"""Identity Alignment — SignalStream architectural substrate models."""
+"""Authentication — SignalStream architectural substrate models."""
 
 from __future__ import annotations
 
@@ -13,12 +13,8 @@ from app.core.base_model import TimestampMixin, UUIDPrimaryKeyMixin
 from app.core.database import Base
 
 
-class NexusRegistry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Architectural Nexus Registry.
-
-    Every distinct operational domain is registered as a nexus. 
-    Nodal and spectral data isolation is enforced via the ``nexus_sig``.
-    """
+class Tenant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Workspace/Tenant Registry."""
 
     __tablename__ = "nexus_registry"
 
@@ -32,8 +28,8 @@ class NexusRegistry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     # Architectural Linkage
-    identities: Mapped[list["IdentityManifest"]] = relationship(
-        "IdentityManifest", back_populates="nexus", lazy="selectin"
+    users: Mapped[list["User"]] = relationship(
+        "User", back_populates="tenant", lazy="selectin"
     )
 
     __table_args__ = (
@@ -42,37 +38,35 @@ class NexusRegistry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     def __repr__(self) -> str:
-        return f"<NexusRegistry(id={self.id}, shard='{self.registry_shard}', phase='{self.operational_phase}')>"
+        return f"<Tenant(id={self.id}, shard='{self.registry_shard}', phase='{self.operational_phase}')>"
 
 
-class IdentityManifest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Substrate Identity Manifest — encompassing administrative and domain-specific entities.
-
-    Privilege Tiers: nexus_admin, schematic_developer, observational_auditor, nodal_operator
-    """
+class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """User model mapped to identity_manifests table."""
 
     __tablename__ = "identity_manifests"
 
-    spectral_identity: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    privilege_tier: Mapped[str] = mapped_column(String(50), nullable=False)
-    nexus_sig: Mapped[uuid.UUID | None] = mapped_column(
+    email: Mapped[str] = mapped_column("spectral_identity", String(255), unique=True, nullable=False)
+    name: Mapped[str | None] = mapped_column("label", String(255), nullable=True)
+    role: Mapped[str] = mapped_column("privilege_tier", String(50), nullable=False)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        "nexus_sig",
         UUID(as_uuid=True),
         ForeignKey("nexus_registry.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
     credential_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    active_mark: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("true"), nullable=False
+    is_active: Mapped[bool] = mapped_column(
+        "active_mark", Boolean, server_default=text("true"), nullable=False
     )
-    last_alignment_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        "last_alignment_at", DateTime(timezone=True), nullable=True
     )
 
     # Architectural Linkage
-    nexus: Mapped[NexusRegistry | None] = relationship(
-        "NexusRegistry", back_populates="identities", foreign_keys=[nexus_sig]
+    tenant: Mapped[Tenant | None] = relationship(
+        "Tenant", back_populates="users", foreign_keys=[tenant_id]
     )
 
     __table_args__ = (
@@ -82,46 +76,44 @@ class IdentityManifest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     def __repr__(self) -> str:
-        return f"<IdentityManifest(id={self.id}, spectral_identity='{self.spectral_identity}', tier='{self.privilege_tier}')>"
+        return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"
 
 
-class IdentityManifestationCandidacy(UUIDPrimaryKeyMixin, Base):
-    """Pending candidacy for substrate identity manifestation.
-
-    Manifested when an administrative identity initiates candidacy. Final identity 
-    manifestation occurs upon credential synchronization.
-    """
+class UserInvitation(UUIDPrimaryKeyMixin, Base):
+    """Pending candidacy for user registration."""
 
     __tablename__ = "identity_candidacies"
 
-    spectral_identity: Mapped[str] = mapped_column(String(255), nullable=False)
-    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    privilege_tier: Mapped[str] = mapped_column(
-        String(50), server_default=text("'observational_auditor'"), nullable=False
+    email: Mapped[str] = mapped_column("spectral_identity", String(255), nullable=False)
+    name: Mapped[str | None] = mapped_column("label", String(255), nullable=True)
+    role: Mapped[str] = mapped_column(
+        "privilege_tier", String(50), server_default=text("'observational_auditor'"), nullable=False
     )
-    nexus_sig: Mapped[uuid.UUID | None] = mapped_column(
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        "nexus_sig",
         UUID(as_uuid=True),
         ForeignKey("nexus_registry.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
-    candidacy_credential: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    originator_sig: Mapped[uuid.UUID | None] = mapped_column(
+    token: Mapped[str] = mapped_column("candidacy_credential", String(64), unique=True, nullable=False)
+    originator_id: Mapped[uuid.UUID | None] = mapped_column(
+        "originator_sig",
         UUID(as_uuid=True),
         ForeignKey("identity_manifests.id", ondelete="SET NULL"),
         nullable=True,
     )
-    terminal_timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+    expires_at: Mapped[datetime] = mapped_column(
+        "terminal_timestamp", DateTime(timezone=True), nullable=False
     )
-    manifestation_timestamp: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    manifested_at: Mapped[datetime | None] = mapped_column(
+        "manifestation_timestamp", DateTime(timezone=True), nullable=True
     )
-    active_mark: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("true"), nullable=False
+    is_active: Mapped[bool] = mapped_column(
+        "active_mark", Boolean, server_default=text("true"), nullable=False
     )
-    inception_timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("NOW()"), nullable=False
+    created_at: Mapped[datetime] = mapped_column(
+        "inception_timestamp", DateTime(timezone=True), server_default=text("NOW()"), nullable=False
     )
 
     __table_args__ = (
@@ -130,4 +122,4 @@ class IdentityManifestationCandidacy(UUIDPrimaryKeyMixin, Base):
     )
 
     def __repr__(self) -> str:
-        return f"<IdentityManifestationCandidacy(id={self.id}, spectral_identity='{self.spectral_identity}', tier='{self.privilege_tier}')>"
+        return f"<UserInvitation(id={self.id}, email='{self.email}', role='{self.role}')>"

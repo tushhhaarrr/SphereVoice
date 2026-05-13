@@ -1,4 +1,4 @@
-"""Signal Propagation Campaigns — API router."""
+"""Campaigns Campaigns — API router."""
 
 from __future__ import annotations
 
@@ -14,17 +14,17 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import set_tenant_context
-from app.modules.auth.dependencies import resolve_active_identity as get_current_user_model, verify_substrate_privilege as require_write
-from app.modules.auth.models import IdentityManifest as User
+from app.modules.auth import get_active_user as get_current_user_model, require_staff as require_write
+from app.modules.auth import User
 from app.modules.campaigns.schemas import (
-    SignalPropagationManifest as CampaignResponse,
+    CampaignsManifest as CampaignResponse,
     PropagationTargetManifest as CampaignContactResponse,
     PropagationCampaignListWrapper as CampaignsListWrapper,
     PropagationTargetListWrapper as CampaignContactsListWrapper,
 )
-from app.modules.campaigns.service import SignalPropagationOrchestrator as CampaignService
+from app.modules.campaigns.service import CampaignsOrchestrator as CampaignService
 
-router = APIRouter(prefix="/campaigns", tags=["SignalPropagation"])
+router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 logger = structlog.get_logger(__name__)
 
 
@@ -38,12 +38,12 @@ async def list_campaigns(
     db: AsyncSession = Depends(set_tenant_context),
 ) -> CampaignsListWrapper:
     if not tenant_id or tenant_id in ("undefined", "null", "") or str(tenant_id).startswith("11111111-"):
-        tid = user.nexus_sig
+        tid = user.tenant_id
     else:
         try:
             tid = uuid.UUID(tenant_id)
         except ValueError:
-            tid = user.nexus_sig
+            tid = user.tenant_id
     try:
         rows, total = await CampaignService.aggregate_propagation_campaigns(db, tid, skip=skip, limit=limit, status=status)
     except Exception:
@@ -57,12 +57,12 @@ async def create_campaign(
     user: User = Depends(require_write), db: AsyncSession = Depends(set_tenant_context),
 ) -> CampaignResponse:
     if not tenant_id or tenant_id in ("undefined", "null", "") or str(tenant_id).startswith("11111111-"):
-        tid = user.nexus_sig
+        tid = user.tenant_id
     else:
         try:
             tid = uuid.UUID(tenant_id)
         except ValueError:
-            tid = user.nexus_sig
+            tid = user.tenant_id
     campaign = await CampaignService.provision_propagation_campaign(db, tenant_id=tid, data=body, created_by=user.id)
     return CampaignResponse.model_validate(campaign)
 
@@ -73,12 +73,12 @@ async def start_campaign(
     user: User = Depends(require_write), db: AsyncSession = Depends(set_tenant_context),
 ) -> CampaignResponse:
     if not tenant_id or tenant_id in ("undefined", "null", "") or str(tenant_id).startswith("11111111-"):
-        tid = user.nexus_sig
+        tid = user.tenant_id
     else:
         try:
             tid = uuid.UUID(tenant_id)
         except ValueError:
-            tid = user.nexus_sig
+            tid = user.tenant_id
     campaign = await CampaignService.activate_propagation_cycle(db, campaign_id, tid)
     from app.workers.celery_app import celery_app
     celery_app.send_task("app.modules.campaigns.workers.orchestrate_propagation_cycle", args=[str(campaign_id)])

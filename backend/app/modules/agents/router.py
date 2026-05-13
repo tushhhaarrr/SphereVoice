@@ -13,52 +13,46 @@ from app.modules.agents.schemas import (
     NodeClusteredRegistry,
     NodeActivationOutcome,
     NodeStateSnapshot,
-    RevisionReversionIntent,
     NodeArchitecturalAdjustment,
-    NodeTemporalArchive,
-    NodeChronicle,
-    VectorMappingSnapshot,
-    VectorMappingConfiguration,
-    ArchitecturalAuditResult,
-    StructuralViolation,
-    BehavioralProbeDefinition,
-    ProbeTelemetryChronicle,
-    ProbeTelemetrySnapshot,
     BehavioralProbeSnapshot,
     SyntheticManifestationIntent,
     SyntheticBlueprintResult,
+    ArchitecturalAuditResult,
+    StructuralViolation,
 )
 from app.modules.agents.service import ProcessingNexusOrchestrator, BehavioralProbeOrchestrator
-from app.modules.auth import IdentityManifest, resolve_active_identity, audit_operational_privileges
+from app.modules.auth import User, get_active_user, require_role
 
-nexus_router = APIRouter(prefix="/agents", tags=["Nodal Engineering"])
+agents_router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
-@nexus_router.get("", response_model=NodeClusteredRegistry)
-async def audit_node_registry_matrix(
+@agents_router.get("", response_model=NodeClusteredRegistry)
+async def list_agents(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     phase: str | None = Query(None),
     class_type: str | None = Query(None, alias="class"),
     tenant_id: str | None = Query(None),
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> NodeClusteredRegistry:
-    """Audits state manifestations for all established processing nodes within the substrate matrix."""
+    """Lists all agents for the current tenant."""
     if not tenant_id or tenant_id in ("undefined", "null", "") or str(tenant_id).startswith("11111111-"):
-        domain_sig = identity.nexus_sig
+        domain_sig = user.tenant_id
     else:
         try:
             domain_sig = UUID(tenant_id)
         except ValueError:
-            domain_sig = identity.nexus_sig
+            domain_sig = user.tenant_id
+            
     try:
         nodes, count = await ProcessingNexusOrchestrator.aggregate_active_nodes(
             db, tenant_id=domain_sig, phase=phase, page=page, limit=limit
         )
     except Exception:
         nodes, count = [], 0
+        
     return NodeClusteredRegistry(
         nodes=[NodeStateSnapshot.model_validate(n) for n in nodes],
         total_count=count,
@@ -67,21 +61,21 @@ async def audit_node_registry_matrix(
     )
 
 
-@nexus_router.post("", response_model=NodeStateSnapshot, status_code=201)
-async def manifest_node_intent(
+@agents_router.post("", response_model=NodeStateSnapshot, status_code=201)
+async def create_agent(
     payload: NodeManifestDefinition,
     request: Request,
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> NodeStateSnapshot:
-    """Manifests a new processing node intent within the architectural substrate."""
+    """Creates a new agent."""
     node = await ProcessingNexusOrchestrator.establish_node_manifest(
         db,
         tenant_id=payload.domain_sig,
         label=payload.label,
         node_class=payload.node_class,
-        creator_sig=identity.id,
+        creator_sig=user.id,
         vector_direction=payload.vector_direction,
         ingress_transcription_sig=payload.ingress_transcription_sig,
         inference_matrix_sig=payload.inference_matrix_sig,
@@ -104,8 +98,8 @@ async def manifest_node_intent(
     )
 
     await EchoLogOrchestrator.log(
-        db, identity_sig=identity.id, nexus_sig=identity.nexus_sig,
-        action="manifestation", resource_type="node", resource_id=node.id,
+        db, identity_sig=user.id, nexus_sig=user.tenant_id,
+        action="create", resource_type="agent", resource_id=node.id,
         changes={"label": payload.label},
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
@@ -113,34 +107,34 @@ async def manifest_node_intent(
     return NodeStateSnapshot.model_validate(node)
 
 
-@nexus_router.get("/{node_sig}", response_model=NodeStateSnapshot)
-async def capture_node_state_matrix(
+@agents_router.get("/{node_sig}", response_model=NodeStateSnapshot)
+async def get_agent(
     node_sig: UUID,
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> NodeStateSnapshot:
-    """Captures a granular state matrix snapshot of a specific processing node."""
+    """Retrieves a specific agent."""
     node = await ProcessingNexusOrchestrator.capture_node_instance(db, node_sig)
     return NodeStateSnapshot.model_validate(node)
 
 
-@nexus_router.put("/{node_sig}", response_model=NodeStateSnapshot)
-async def mutate_node_architecture(
+@agents_router.put("/{node_sig}", response_model=NodeStateSnapshot)
+async def update_agent(
     node_sig: UUID,
     payload: NodeArchitecturalAdjustment,
     request: Request,
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> NodeStateSnapshot:
-    """Applies architectural mutations and state shifts to an established processing node."""
+    """Updates a specific agent."""
     node = await ProcessingNexusOrchestrator.apply_architectural_mutation(
         db, node_sig, **payload.model_dump(exclude_unset=True)
     )
     await EchoLogOrchestrator.log(
-        db, identity_sig=identity.id, nexus_sig=identity.nexus_sig,
-        action="mutation", resource_type="node", resource_id=node.id,
+        db, identity_sig=user.id, nexus_sig=user.tenant_id,
+        action="update", resource_type="agent", resource_id=node.id,
         changes=payload.model_dump(exclude_unset=True, mode="json"),
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
@@ -148,19 +142,19 @@ async def mutate_node_architecture(
     return NodeStateSnapshot.model_validate(node)
 
 
-@nexus_router.delete("/{node_sig}", status_code=204)
-async def decommission_node_instance(
+@agents_router.delete("/{node_sig}", status_code=204)
+async def delete_agent(
     node_sig: UUID,
     request: Request,
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> Response:
-    """Permanently decommissions a node instance and audits its removal from the matrix."""
+    """Deletes a specific agent."""
     node = await ProcessingNexusOrchestrator.capture_node_instance(db, node_sig)
     await EchoLogOrchestrator.log(
-        db, identity_sig=identity.id, nexus_sig=identity.nexus_sig,
-        action="decommission", resource_type="node", resource_id=node_sig,
+        db, identity_sig=user.id, nexus_sig=user.tenant_id,
+        action="delete", resource_type="agent", resource_id=node_sig,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
@@ -168,38 +162,35 @@ async def decommission_node_instance(
     return Response(status_code=204)
 
 
-@nexus_router.post("/{node_sig}/activate", response_model=NodeActivationOutcome)
-async def manifest_state_revision(
+@agents_router.post("/{node_sig}/activate", response_model=NodeActivationOutcome)
+async def activate_agent(
     node_sig: UUID,
     request: Request,
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> NodeActivationOutcome:
-    """Manifests a new active state revision for an established processing node iteration."""
-    node = await ProcessingNexusOrchestrator.transition_node_to_active(db, node_sig, author_sig=identity.id)
+    """Activates a specific agent revision."""
+    node = await ProcessingNexusOrchestrator.transition_node_to_active(db, node_sig, author_sig=user.id)
     await EchoLogOrchestrator.log(
-        db, identity_sig=identity.id, nexus_sig=identity.nexus_sig,
-        action="revision_manifest", resource_type="node", resource_id=node.id,
+        db, identity_sig=user.id, nexus_sig=user.tenant_id,
+        action="activate", resource_type="agent", resource_id=node.id,
         changes={"revision": node.revision},
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
     return NodeActivationOutcome(
         sig=node.id, phase=node.node_phase, iteration=node.revision,
-        temporal_mark=node.activation_mark  # type: ignore
+        temporal_mark=node.activation_mark
     )
 
 
-# ── Synthetic Logic Synthesis ────────────────────────────────
-
-
-@nexus_router.post("/synthetic/blueprint", response_model=SyntheticBlueprintResult)
-async def synthesize_node_blueprint(
+@agents_router.post("/synthetic/blueprint", response_model=SyntheticBlueprintResult)
+async def generate_blueprint(
     payload: SyntheticManifestationIntent,
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
 ) -> SyntheticBlueprintResult:
-    """Harnesses high-level intent to synthesize a new architectural node blueprint."""
+    """Generates an agent blueprint from a description."""
     from app.modules.agents.ai_generator import generate_agent_config
     blueprint = await generate_agent_config(
         payload.intent_narrative,
@@ -215,18 +206,15 @@ async def synthesize_node_blueprint(
     )
 
 
-# ── Behavioral Probes & Verification ──────────────────────────
-
-
-@nexus_router.post("/{node_sig}/audit-integrity", response_model=ArchitecturalAuditResult)
-async def audit_architectural_integrity(
+@agents_router.post("/{node_sig}/audit-integrity", response_model=ArchitecturalAuditResult)
+async def audit_integrity(
     node_sig: UUID,
     payload: dict,
-    identity: IdentityManifest = Depends(resolve_active_identity),
+    user: User = Depends(get_active_user),
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> ArchitecturalAuditResult:
-    """Performs a rigorous architectural audit of structural blocks and nodal vectors."""
+    """Audits the architectural integrity of an agent configuration."""
     await ProcessingNexusOrchestrator.capture_node_instance(db, node_sig)
     audit = ProcessingNexusOrchestrator.audit_architectural_integrity(payload.get("nodes", []), payload.get("edges", []))
     return ArchitecturalAuditResult(
@@ -238,12 +226,12 @@ async def audit_architectural_integrity(
     )
 
 
-@nexus_router.get("/{node_sig}/behavioral-probes", response_model=list[BehavioralProbeSnapshot])
-async def catalog_behavioral_probes(
+@agents_router.get("/{node_sig}/behavioral-probes", response_model=list[BehavioralProbeSnapshot])
+async def list_probes(
     node_sig: UUID,
     db: AsyncSession = Depends(get_db),
     _context: None = Depends(set_tenant_context),
 ) -> list[BehavioralProbeSnapshot]:
-    """Catalogs all established behavioral probes associated with a specific processing node."""
+    """Lists behavioral probes for a specific agent."""
     probes = await BehavioralProbeOrchestrator.catalog_behavioral_probes(db, node_sig)
     return [BehavioralProbeSnapshot.model_validate(p) for p in probes]

@@ -1,4 +1,4 @@
-"""Cognitive Library Hub — Structural Unstructured Intelligence Ingress.
+"""Knowledge Base Hub — Structural Unstructured Intelligence Ingress.
 
 Endpoints:
 - GET    /api/v1/cognitive-libraries              — Catalog libraries
@@ -34,9 +34,9 @@ from app.modules.knowledge_base.schemas import (
     VectorSearchResponse,
     VectorSearchResult,
 )
-from app.modules.knowledge_base.service import CognitiveLibraryOrchestrator
+from app.modules.knowledge_base.service import KnowledgeBaseOrchestrator
 
-router = APIRouter(prefix="/knowledge-bases", tags=["CognitiveLibrary"])
+router = APIRouter(prefix="/knowledge-bases", tags=["KnowledgeBase"])
 node_library_router = APIRouter(prefix="/agents", tags=["NodeCognition"])
 
 
@@ -52,7 +52,7 @@ async def catalog_cognitive_libraries(
 ) -> LibraryAuditResponse:
     """Catalogs all authorized cognitive libraries within the accessible domain."""
     tid = uuid.UUID(user["tenant_id"]) if user.get("tenant_id") else tenant_id
-    libs, count = await CognitiveLibraryOrchestrator.list_kbs(db, page, limit, search, tid)
+    libs, count = await KnowledgeBaseOrchestrator.list_kbs(db, page, limit, search, tid)
     return LibraryAuditResponse(
         items=[
             LibraryStateResponse(
@@ -69,7 +69,7 @@ async def catalog_cognitive_libraries(
 
 
 @router.post("", response_model=LibraryStateResponse, status_code=201)
-async def establish_cognitive_library(
+async def establish_knowledge_base(
     body: LibraryManifest,
     db: AsyncSession = Depends(get_db),
     user: dict[str, Any] = Depends(get_current_user),
@@ -77,7 +77,7 @@ async def establish_cognitive_library(
 ) -> LibraryStateResponse:
     """Establishes a new cognitive library substrate."""
     tid = body.tenant_id or (uuid.UUID(user["tenant_id"]) if user.get("tenant_id") else None)
-    kb = await CognitiveLibraryOrchestrator.create_kb(
+    kb = await KnowledgeBaseOrchestrator.create_kb(
         db=db, name=body.name, description=body.description, tenant_id=tid,
         sharing_scope=body.sharing_scope, default_chunk_count=body.default_chunk_count,
         default_similarity_threshold=float(body.default_similarity_threshold),
@@ -94,14 +94,14 @@ async def establish_cognitive_library(
 
 
 @router.get("/{sig}", response_model=LibraryStateResponse)
-async def inspect_cognitive_library(
+async def inspect_knowledge_base(
     sig: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _user: dict[str, Any] = Depends(get_current_user),
     _ctx: None = Depends(set_tenant_context),
 ) -> LibraryStateResponse:
     """Performs a structural inspection of a cognitive library."""
-    kb = await CognitiveLibraryOrchestrator.get_kb(db, sig)
+    kb = await KnowledgeBaseOrchestrator.get_kb(db, sig)
     return LibraryStateResponse(
         id=kb.id, tenant_id=kb.tenant_id, name=kb.name, description=kb.description,
         sharing_scope=kb.sharing_scope, default_chunk_count=kb.default_chunk_count,
@@ -112,7 +112,7 @@ async def inspect_cognitive_library(
 
 
 @router.put("/{sig}", response_model=LibraryStateResponse)
-async def mutate_cognitive_library(
+async def mutate_knowledge_base(
     sig: uuid.UUID,
     body: LibraryAdjustment,
     db: AsyncSession = Depends(get_db),
@@ -120,9 +120,9 @@ async def mutate_cognitive_library(
     _ctx: None = Depends(set_tenant_context),
 ) -> LibraryStateResponse:
     """Applies structural mutations to a cognitive library state."""
-    await CognitiveLibraryOrchestrator.update_kb(db, sig, **body.model_dump(exclude_unset=True))
+    await KnowledgeBaseOrchestrator.update_kb(db, sig, **body.model_dump(exclude_unset=True))
     await db.commit()
-    kb = await CognitiveLibraryOrchestrator.get_kb(db, sig)
+    kb = await KnowledgeBaseOrchestrator.get_kb(db, sig)
     return LibraryStateResponse(
         id=kb.id, tenant_id=kb.tenant_id, name=kb.name, description=kb.description,
         sharing_scope=kb.sharing_scope, default_chunk_count=kb.default_chunk_count,
@@ -133,14 +133,14 @@ async def mutate_cognitive_library(
 
 
 @router.delete("/{sig}", status_code=204)
-async def excise_cognitive_library(
+async def excise_knowledge_base(
     sig: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _user: dict[str, Any] = Depends(get_current_user),
     _ctx: None = Depends(set_tenant_context),
 ) -> Response:
     """Excises a cognitive library and its vector indices from the substrate."""
-    await CognitiveLibraryOrchestrator.delete_kb(db, sig)
+    await KnowledgeBaseOrchestrator.delete_kb(db, sig)
     await db.commit()
     return Response(status_code=204)
 
@@ -161,7 +161,7 @@ async def ingest_unstructured_shards(
     data = await file.read()
     if len(data) > 100 * 1024 * 1024: raise ValidationError("Artifact payload exceeds threshold")
 
-    doc = await CognitiveLibraryOrchestrator.upload_document(db=db, kb_id=sig, filename=file.filename, file_data=data)
+    doc = await KnowledgeBaseOrchestrator.upload_document(db=db, kb_id=sig, filename=file.filename, file_data=data)
     await db.commit()
 
     from app.workers.embeddings import generate_embeddings
@@ -181,7 +181,7 @@ async def catalog_library_artifacts(
     _ctx: None = Depends(set_tenant_context),
 ) -> ArtifactListResponse:
     """Catalogs all ingested artifacts within a specific cognitive library."""
-    docs = await CognitiveLibraryOrchestrator.list_documents(db, sig)
+    docs = await KnowledgeBaseOrchestrator.list_documents(db, sig)
     return ArtifactListResponse(
         items=[
             ArtifactResponse(
@@ -206,7 +206,7 @@ async def probe_library_vectors(
     _ctx: None = Depends(set_tenant_context),
 ) -> VectorSearchResponse:
     """Probes the cognitive library for structural vector similarity."""
-    await CognitiveLibraryOrchestrator.get_kb(db, sig)
+    await KnowledgeBaseOrchestrator.get_kb(db, sig)
     hits = await probe_cognitive_vectors(db, sig, q, limit=limit, threshold=threshold)
     return VectorSearchResponse(
         results=[
@@ -229,12 +229,12 @@ async def link_library_to_node(
     _ctx: None = Depends(set_tenant_context),
 ) -> NodeLibraryResponse:
     """Links a recursive cognitive library to a structural processing node."""
-    await CognitiveLibraryOrchestrator.attach_kb_to_agent(
+    await KnowledgeBaseOrchestrator.attach_kb_to_agent(
         db=db, agent_id=node_sig, kb_id=body.lib_id, chunk_count=body.shard_density,
         similarity_threshold=float(body.activation_threshold) if body.activation_threshold is not None else None,
     )
     await db.commit()
-    kb = await CognitiveLibraryOrchestrator.get_kb(db, body.lib_id)
+    kb = await KnowledgeBaseOrchestrator.get_kb(db, body.lib_id)
 
     from app.modules.agents.models import ProcessorLibraryLink
     from sqlalchemy import select
@@ -255,7 +255,7 @@ async def list_node_cognitive_libraries(
     _ctx: None = Depends(set_tenant_context),
 ) -> list[NodeLibraryResponse]:
     """Lists all cognitive libraries associated with a specific structural node."""
-    rows = await CognitiveLibraryOrchestrator.list_agent_kbs(db, node_sig)
+    rows = await KnowledgeBaseOrchestrator.list_agent_kbs(db, node_sig)
     return [
         NodeLibraryResponse(
             node_id=r["agent_id"], lib_id=r["kb_id"], lib_label=r["kb_name"],

@@ -33,7 +33,7 @@ class KnowledgeBase(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"), # Use 'tenants' to match current DB
+        ForeignKey("nexus_registry.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
@@ -52,7 +52,7 @@ class KnowledgeBase(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True # Updated to 'users'
+        UUID(as_uuid=True), ForeignKey("identity_manifests.id"), nullable=True
     )
     status: Mapped[str] = mapped_column(
         String(20), server_default=text("'ready'"), nullable=False

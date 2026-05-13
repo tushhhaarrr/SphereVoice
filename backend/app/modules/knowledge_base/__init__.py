@@ -2,13 +2,13 @@
 
 from app.modules.knowledge_base.models import KBDocument, KBEmbedding, KnowledgeBase
 from app.modules.knowledge_base.retriever import KnowledgeRetriever, search_kb
-from app.modules.knowledge_base.service import CognitiveLibraryOrchestrator
+from app.modules.knowledge_base.service import KnowledgeBaseOrchestrator
 
 __all__ = [
     "KnowledgeBase",
     "KBDocument",
     "KBEmbedding",
-    "CognitiveLibraryOrchestrator",
+    "KnowledgeBaseOrchestrator",
     "KnowledgeRetriever",
     "search_kb",
 ]

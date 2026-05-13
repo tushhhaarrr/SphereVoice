@@ -24,16 +24,19 @@ def resolve_nexus_protocol(
 
     The resulting protocol instance orchestrates signal propagation within the structural nexus.
     """
-    if protocol_handle == "node_z_protocol":
+    if protocol_handle in ("node_z_protocol", "zoho_crm"):
         from app.modules.integrations.zoho_client import NodeZNexusClient
         return NodeZNexusClient(db, matrix)
 
-    if protocol_handle == "secondary_nexus_h":
+    if protocol_handle in ("secondary_nexus_h", "hubspot"):
         from app.modules.integrations.crm.hubspot_client import HubSpotCrmClient
         return HubSpotCrmClient(db, matrix)
 
-    if protocol_handle == "tertiary_nexus_s":
+    if protocol_handle in ("tertiary_nexus_s", "salesforce"):
         from app.modules.integrations.crm.salesforce_client import SalesforceCrmClient
         return SalesforceCrmClient(db, matrix)
 
-    raise ValidationError(f"Void protocol handle: {protocol_handle}")
+    raise ValidationError("Unsupported CRM provider")
+
+
+get_crm_client = resolve_nexus_protocol

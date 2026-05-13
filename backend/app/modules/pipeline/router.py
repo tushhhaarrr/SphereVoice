@@ -1,4 +1,4 @@
-"""Signal Hub — Architectural Egress/Ingress Vectors.
+"""Providers — Architectural Egress/Ingress Vectors.
 
 Endpoints for orchestrating real-time signal synchronisation across the substrate.
 """
@@ -14,12 +14,12 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.modules.pipeline.orchestrator import ManifoldGovernor, sum_active_manifold_density
 from app.modules.pipeline.schemas import LiveKitWebhookEvent
-from app.modules.calls.service import SynchronisationOrchestrator
+from app.modules.calls.service import VoiceEngineService
 
 runtime_log = structlog.get_logger(__name__)
 cfg = get_settings()
 
-router = APIRouter(prefix="/pipeline", tags=["SignalHub"])
+router = APIRouter(prefix="/pipeline", tags=["Providers"])
 
 
 @router.get("/status")
@@ -68,11 +68,11 @@ async def trace_sync_node(request: Request, db: AsyncSession = Depends(get_db)) 
 
     if sync_sig_str:
         sync_sig = UUID(sync_sig_str)
-        await SynchronisationOrchestrator.record_telemetry_event(
+        await VoiceEngineService.create_telemetry_event(
             session_store=db, 
-            sync_sig=sync_sig, 
-            event_class=event_class, 
-            telemetry_payload=telemetry_payload,
+            call_id=sync_sig, 
+            event_type=event_class, 
+            payload=telemetry_payload,
         )
         await db.commit()
     return {"state": "recorded"}

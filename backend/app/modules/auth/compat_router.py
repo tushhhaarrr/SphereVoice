@@ -16,14 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.modules.analytics import EchoLogOrchestrator
 from app.modules.auth import schemas
-from app.modules.auth.service import AlignmentOrchestrator
+from app.modules.auth.service import AuthService
 
-auth_compat_router = APIRouter(prefix="/auth", tags=["Auth (Compat)"])
+auth_compat_router = APIRouter(prefix="/auth/compat", tags=["Auth (Compat)"])
 
 
-@auth_compat_router.post("/login", response_model=schemas.AlignmentEstablishmentOutcome)
+@auth_compat_router.post("/login", response_model=schemas.AuthResponse)
 async def login(
-    synchronizer: schemas.AlignmentSynchronizer,
+    synchronizer: schemas.AuthRequest,
     trace_req: Request,
     session_store: AsyncSession = Depends(get_db),
 ):
@@ -31,12 +31,12 @@ async def login(
 
     Accepts {email, password} — maps to the identity alignment flow internally.
     """
-    manifest = await AlignmentOrchestrator.authenticate_spectral_alignment(
+    manifest = await AuthService.authenticate(
         session_store,
-        spectral_identity=synchronizer.spectral_identity,
-        credential_secret=synchronizer.credential_secret,
+        email=synchronizer.email,
+        password=synchronizer.password,
     )
-    access_signal, refresh_signal = AlignmentOrchestrator.derive_spectral_signatures(manifest)
+    access_signal, refresh_signal = AuthService.create_tokens(manifest)
 
     # Dispatch audit telemetry
     await EchoLogOrchestrator.log(
@@ -57,17 +57,17 @@ async def login(
     }
 
 
-@auth_compat_router.post("/refresh", response_model=schemas.SpectralRefreshOutcome)
+@auth_compat_router.post("/refresh", response_model=schemas.TokenRefreshResponse)
 async def refresh(
-    intent: schemas.SpectralRefreshIntent,
+    intent: schemas.TokenRefreshRequest,
     session_store: AsyncSession = Depends(get_db),
 ):
     """Refresh an access token using a refresh token.
 
     Accepts {refresh_token} — maps to spectral rotation internally.
     """
-    access_signal = await AlignmentOrchestrator.rotate_spectral_signatures(
+    access_signal = await AuthService.refresh_tokens(
         session_store,
-        refresh_signal=intent.refresh_signal,
+        refresh_token=intent.refresh_token,
     )
     return {"access_token": access_signal, "token_type": "bearer"}

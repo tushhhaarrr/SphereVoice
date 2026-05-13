@@ -1,4 +1,4 @@
-"""Signal Propagation Campaigns — SignalStream architectural models."""
+"""Campaigns Campaigns — SignalStream architectural models."""
 
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from app.core.base_model import TenantMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from app.core.database import Base
 
 
-class SignalPropagationCampaign(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+class CampaignsCampaign(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     """A bulk egress signal propagation campaign definition."""
 
-    __tablename__ = "signal_propagation_campaigns"
+    __tablename__ = "campaigns_campaigns"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -67,7 +67,7 @@ class PropagationTarget(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
 
     __tablename__ = "propagation_targets"
 
-    campaign_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("signal_propagation_campaigns.id", ondelete="CASCADE"), nullable=False)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("campaigns_campaigns.id", ondelete="CASCADE"), nullable=False)
 
     # Target identity
     destination_vector: Mapped[str] = mapped_column("phone_number", String(30), nullable=False)
@@ -90,7 +90,7 @@ class PropagationTarget(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     interface_results: Mapped[list[dict[str, Any]] | None] = mapped_column("tool_results", JSONB, nullable=True, server_default=text("'[]'::jsonb"))
 
     # Relationships
-    campaign: Mapped["SignalPropagationCampaign"] = relationship("SignalPropagationCampaign", back_populates="targets")
+    campaign: Mapped["CampaignsCampaign"] = relationship("CampaignsCampaign", back_populates="targets")
 
     __table_args__ = (
         Index("idx_target_campaign_status", "campaign_id", "status"),
